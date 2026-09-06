@@ -19,7 +19,7 @@ Object.defineProperty(exports, "baseUrl", {
 });
 
 /**
- * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN.
+ * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN. May be omitted for a provider that only creates a Bootstrap resource.
  */
 export declare const token: string;
 Object.defineProperty(exports, "token", {

@@ -5,6 +5,11 @@ import * as pulumi from "@pulumi/pulumi";
 import * as utilities from "./utilities";
 
 // Export members:
+export { BootstrapArgs } from "./bootstrap";
+export type Bootstrap = import("./bootstrap").Bootstrap;
+export const Bootstrap: typeof import("./bootstrap").Bootstrap = null as any;
+utilities.lazyLoad(exports, ["Bootstrap"], () => require("./bootstrap"));
+
 export { BotArgs } from "./bot";
 export type Bot = import("./bot").Bot;
 export const Bot: typeof import("./bot").Bot = null as any;
@@ -77,6 +82,8 @@ const _module = {
     version: utilities.getVersion(),
     construct: (name: string, type: string, urn: string): pulumi.Resource => {
         switch (type) {
+            case "mattermost:index:Bootstrap":
+                return new Bootstrap(name, <any>undefined, { urn })
             case "mattermost:index:Bot":
                 return new Bot(name, <any>undefined, { urn })
             case "mattermost:index:Channel":

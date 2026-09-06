@@ -16,6 +16,34 @@ export MATTERMOST_BASE_URL=https://mattermost.example.com
 export MATTERMOST_TOKEN=<personal-access-token>
 ```
 
+The token may be omitted for a provider instance that only creates a `Bootstrap` resource (see below); every other request then fails with `mattermost: missing token`.
+
+## Bootstrap: obtaining a system-admin token without user interaction
+
+`mattermost:index:Bootstrap` gets a bot token with system-admin rights from a server nobody has logged in to yet, and it also adopts a server that is already running. It authenticates on its own:
+
+1. With `adminToken` set, that token is used. Otherwise it logs in with `adminUsername`/`adminPassword`. If the login fails and the server reports `NoAccounts` (no user exists yet), it signs the admin up through the unauthenticated `POST /api/v4/users`; Mattermost promotes the first account to system admin. The admin account is kept as the human login.
+2. The bot named `botUsername` (default `pulumi`) is created, or adopted if it already exists.
+3. The `roles` (default `system_user`, `system_admin`, `system_post_all`) are applied to the bot account.
+4. An access token described by `tokenDescription` is issued. Bot tokens are exempt from `EnableUserAccessTokens`.
+
+Outputs: `token` (secret), `tokenId`, `botUserId`, `adminUserId`. Changing `tokenDescription` rotates the token; refreshing detects a revoked token or deleted bot and recreates. Deleting the resource revokes the token and keeps the bot and the admin account.
+
+Use two provider instances: one without a token for the bootstrap, one fed by its output for everything else.
+
+```typescript
+const bootstrapProvider = new mattermost.Provider("mattermost-bootstrap", { baseUrl });
+const bootstrap = new mattermost.Bootstrap("pulumi", {
+    adminUsername: "admin",
+    adminEmail: "admin@example.com",
+    adminPassword: config.requireSecret("mattermostAdminPassword"),
+    // adminToken: config.requireSecret("existingAdminToken"), // alternative on a running server
+}, { provider: bootstrapProvider, protect: true });
+
+const provider = new mattermost.Provider("mattermost", { baseUrl, token: bootstrap.token });
+new mattermost.Team("engineering", { name: "engineering", displayName: "Engineering" }, { provider });
+```
+
 ## Resources
 
 - `mattermost:index:Team`
@@ -28,6 +56,7 @@ export MATTERMOST_TOKEN=<personal-access-token>
 - `mattermost:index:Bot`
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
+- `mattermost:index:Bootstrap` (first admin signup or login, bot, roles and token; see above)
 
 ## Development
 
