@@ -10,7 +10,12 @@ import (
 	mm "github.com/bambamboole/pulumi-provider-mattermost/internal/mattermost"
 )
 
+type clientKey struct{}
+
 func client(ctx context.Context) *mm.Client {
+	if c, ok := ctx.Value(clientKey{}).(*mm.Client); ok {
+		return c
+	}
 	return infer.GetConfig[Config](ctx).client
 }
 
