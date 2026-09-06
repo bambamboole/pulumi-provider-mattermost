@@ -19,6 +19,8 @@ func New() (p.Provider, error) {
 			infer.Resource(ChannelMember{}),
 			infer.Resource(IncomingWebhook{}),
 			infer.Resource(OutgoingWebhook{}),
+			infer.Resource(Bot{}),
+			infer.Resource(OAuthApp{}),
 		).
 		WithDisplayName("Mattermost").
 		WithDescription("Manage Mattermost teams, channels, users, memberships and integrations.").
