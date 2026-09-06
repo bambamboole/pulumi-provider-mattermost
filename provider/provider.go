@@ -21,9 +21,10 @@ func New() (p.Provider, error) {
 			infer.Resource(OutgoingWebhook{}),
 			infer.Resource(Bot{}),
 			infer.Resource(OAuthApp{}),
+			infer.Resource(SystemConfig{}),
 		).
 		WithDisplayName("Mattermost").
-		WithDescription("Manage Mattermost teams, channels, users, memberships and integrations.").
+		WithDescription("Manage Mattermost teams, channels, users, memberships, integrations and system configuration.").
 		WithPublisher("bambamboole").
 		WithRepository("https://github.com/bambamboole/pulumi-provider-mattermost").
 		WithHomepage("https://mattermost.com").
