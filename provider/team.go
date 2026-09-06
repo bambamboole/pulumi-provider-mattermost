@@ -22,9 +22,9 @@ type TeamState struct {
 	ID string `pulumi:"id"`
 }
 
-func (Team) Annotate(a infer.Annotator) {
+func (r *Team) Annotate(a infer.Annotator) {
 	a.SetToken("index", "Team")
-	a.Describe((*Team)(nil), "A Mattermost team.")
+	a.Describe(&r, "A Mattermost team.")
 }
 
 func (Team) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[TeamArgs], error) {

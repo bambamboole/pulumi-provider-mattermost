@@ -24,9 +24,9 @@ type ChannelState struct {
 	ID string `pulumi:"id"`
 }
 
-func (Channel) Annotate(a infer.Annotator) {
+func (r *Channel) Annotate(a infer.Annotator) {
 	a.SetToken("index", "Channel")
-	a.Describe((*Channel)(nil), "A Mattermost public or private channel.")
+	a.Describe(&r, "A Mattermost public or private channel.")
 }
 
 func (Channel) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[ChannelArgs], error) {
@@ -66,7 +66,7 @@ func (Channel) Update(ctx context.Context, req infer.UpdateRequest[ChannelArgs, 
 }
 
 func (Channel) Read(ctx context.Context, req infer.ReadRequest[ChannelArgs, ChannelState]) (infer.ReadResponse[ChannelArgs, ChannelState], error) {
-	channel, response, err := client(ctx).API.GetChannel(ctx, req.ID, "")
+	channel, response, err := client(ctx).API.GetChannel(ctx, req.ID)
 	if isNotFound(response) {
 		return infer.ReadResponse[ChannelArgs, ChannelState]{}, nil
 	}
