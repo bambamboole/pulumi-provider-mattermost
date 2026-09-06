@@ -17,6 +17,8 @@ type UserArgs struct {
 	FirstName string `pulumi:"firstName,optional"`
 	LastName  string `pulumi:"lastName,optional"`
 	Nickname  string `pulumi:"nickname,optional"`
+	// System roles of the user. Defaults to ["system_user"].
+	Roles []SystemRole `pulumi:"roles,optional"`
 }
 
 type UserState struct {
@@ -26,6 +28,19 @@ type UserState struct {
 func (r *User) Annotate(a infer.Annotator) {
 	a.SetToken("index", "User")
 	a.Describe(&r, "A Mattermost user account. The password is only used on create and is retained as a secret input because the Mattermost API never returns it. Deleting the resource deactivates the account; it is not removed permanently.")
+}
+
+func (args *UserArgs) Annotate(a infer.Annotator) {
+	a.Describe(&args.Roles, "System roles assigned to the user, e.g. [\"system_user\", \"system_admin\"]. Defaults to [\"system_user\"].")
+}
+
+func (User) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[UserArgs], error) {
+	args, failures, err := infer.DefaultCheck[UserArgs](ctx, req.NewInputs)
+	if err != nil {
+		return infer.CheckResponse[UserArgs]{}, err
+	}
+	args.Roles = normalizeRoles(args.Roles)
+	return infer.CheckResponse[UserArgs]{Inputs: args, Failures: failures}, nil
 }
 
 func (User) Create(ctx context.Context, req infer.CreateRequest[UserArgs]) (infer.CreateResponse[UserState], error) {
@@ -43,6 +58,11 @@ func (User) Create(ctx context.Context, req infer.CreateRequest[UserArgs]) (infe
 	})
 	if err != nil {
 		return infer.CreateResponse[UserState]{}, err
+	}
+	if !rolesEqual(parseRoles(user.Roles), req.Inputs.Roles) {
+		if _, err := client(ctx).API.UpdateUserRoles(ctx, user.Id, joinRoles(req.Inputs.Roles)); err != nil {
+			return infer.CreateResponse[UserState]{}, err
+		}
 	}
 	return infer.CreateResponse[UserState]{ID: user.Id, Output: state}, nil
 }
@@ -64,6 +84,11 @@ func (User) Update(ctx context.Context, req infer.UpdateRequest[UserArgs, UserSt
 	})
 	if err != nil {
 		return infer.UpdateResponse[UserState]{}, err
+	}
+	if !rolesEqual(req.State.Roles, req.Inputs.Roles) {
+		if _, err := client(ctx).API.UpdateUserRoles(ctx, req.ID, joinRoles(req.Inputs.Roles)); err != nil {
+			return infer.UpdateResponse[UserState]{}, err
+		}
 	}
 	return infer.UpdateResponse[UserState]{Output: state}, nil
 }
@@ -88,6 +113,7 @@ func (User) Read(ctx context.Context, req infer.ReadRequest[UserArgs, UserState]
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Nickname:  user.Nickname,
+		Roles:     parseRoles(user.Roles),
 	}
 	return infer.ReadResponse[UserArgs, UserState]{ID: req.ID, Inputs: inputs, State: UserState{UserArgs: inputs}}, nil
 }

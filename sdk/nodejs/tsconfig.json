@@ -32,6 +32,10 @@
         "systemConfig.ts",
         "team.ts",
         "teamMember.ts",
+        "types/enums/index.ts",
+        "types/index.ts",
+        "types/input.ts",
+        "types/output.ts",
         "user.ts",
         "utilities.ts"
     ]

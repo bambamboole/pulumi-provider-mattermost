@@ -2,6 +2,9 @@
 // *** Do not edit by hand unless you're certain you know what you are doing! ***
 
 import * as pulumi from "@pulumi/pulumi";
+import * as inputs from "./types/input";
+import * as outputs from "./types/output";
+import * as enums from "./types/enums";
 import * as utilities from "./utilities";
 
 /**
@@ -39,6 +42,10 @@ export class User extends pulumi.CustomResource {
     declare public readonly lastName: pulumi.Output<string | undefined>;
     declare public readonly nickname: pulumi.Output<string | undefined>;
     declare public readonly password: pulumi.Output<string | undefined>;
+    /**
+     * System roles assigned to the user, e.g. ["system_user", "system_admin"]. Defaults to ["system_user"].
+     */
+    declare public readonly roles: pulumi.Output<enums.SystemRole[] | undefined>;
     declare public readonly username: pulumi.Output<string>;
 
     /**
@@ -63,6 +70,7 @@ export class User extends pulumi.CustomResource {
             resourceInputs["lastName"] = args?.lastName;
             resourceInputs["nickname"] = args?.nickname;
             resourceInputs["password"] = args?.password ? pulumi.secret(args.password) : undefined;
+            resourceInputs["roles"] = args?.roles;
             resourceInputs["username"] = args?.username;
         } else {
             resourceInputs["email"] = undefined /*out*/;
@@ -70,6 +78,7 @@ export class User extends pulumi.CustomResource {
             resourceInputs["lastName"] = undefined /*out*/;
             resourceInputs["nickname"] = undefined /*out*/;
             resourceInputs["password"] = undefined /*out*/;
+            resourceInputs["roles"] = undefined /*out*/;
             resourceInputs["username"] = undefined /*out*/;
         }
         opts = pulumi.mergeOptions(utilities.resourceOptsDefaults(), opts);
@@ -88,5 +97,9 @@ export interface UserArgs {
     lastName?: pulumi.Input<string | undefined>;
     nickname?: pulumi.Input<string | undefined>;
     password?: pulumi.Input<string | undefined>;
+    /**
+     * System roles assigned to the user, e.g. ["system_user", "system_admin"]. Defaults to ["system_user"].
+     */
+    roles?: pulumi.Input<pulumi.Input<enums.SystemRole>[] | undefined>;
     username: pulumi.Input<string>;
 }
