@@ -19,6 +19,7 @@
         "skipLibCheck": true
     },
     "files": [
+        "bootstrap.ts",
         "bot.ts",
         "channel.ts",
         "channelMember.ts",

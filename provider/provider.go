@@ -22,6 +22,7 @@ func New() (p.Provider, error) {
 			infer.Resource(Bot{}),
 			infer.Resource(OAuthApp{}),
 			infer.Resource(SystemConfig{}),
+			infer.Resource(Bootstrap{}),
 		).
 		WithDisplayName("Mattermost").
 		WithDescription("Manage Mattermost teams, channels, users, memberships, integrations and system configuration.").

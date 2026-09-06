@@ -27,7 +27,7 @@ export class Provider extends pulumi.ProviderResource {
      */
     declare public readonly baseUrl: pulumi.Output<string>;
     /**
-     * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN.
+     * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN. May be omitted for a provider that only creates a Bootstrap resource.
      */
     declare public readonly token: pulumi.Output<string>;
 
@@ -61,7 +61,7 @@ export interface ProviderArgs {
      */
     baseUrl?: pulumi.Input<string | undefined>;
     /**
-     * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN.
+     * Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN. May be omitted for a provider that only creates a Bootstrap resource.
      */
     token?: pulumi.Input<string | undefined>;
 }

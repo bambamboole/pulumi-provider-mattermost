@@ -27,7 +27,7 @@ type Config struct {
 func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c, "Manage resources on a Mattermost instance through the Mattermost API v4.")
 	a.Describe(&c.BaseURL, "Base URL of the Mattermost instance, e.g. https://mattermost.example.com. Defaults to MATTERMOST_BASE_URL.")
-	a.Describe(&c.Token, "Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN.")
+	a.Describe(&c.Token, "Mattermost personal access token or bot token. Defaults to MATTERMOST_TOKEN. May be omitted for a provider that only creates a Bootstrap resource.")
 	a.SetDefault(&c.BaseURL, "", envBaseURL)
 	a.SetDefault(&c.Token, "", envToken)
 }
@@ -38,8 +38,11 @@ func (c *Config) Configure(_ context.Context) error {
 	if strings.TrimSpace(baseURL) == "" {
 		return errors.New("mattermost: missing base URL; set baseUrl or MATTERMOST_BASE_URL")
 	}
+	// Without a token the provider can still run a Bootstrap resource, which
+	// authenticates on its own; every other request fails with ErrMissingToken.
 	if strings.TrimSpace(token) == "" {
-		return errors.New("mattermost: missing token; set token or MATTERMOST_TOKEN")
+		c.client = mm.NewMissingToken(baseURL)
+		return nil
 	}
 	client, err := mm.New(baseURL, token)
 	if err != nil {
