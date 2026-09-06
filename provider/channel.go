@@ -45,7 +45,7 @@ func (Channel) Create(ctx context.Context, req infer.CreateRequest[ChannelArgs])
 	if req.DryRun {
 		return infer.CreateResponse[ChannelState]{Output: state}, nil
 	}
-	channel, _, err := client(ctx).API.CreateChannel(ctx, &model.Channel{TeamId: req.Inputs.TeamID, Name: req.Inputs.Name, DisplayName: req.Inputs.DisplayName, Purpose: req.Inputs.Purpose, Header: req.Inputs.Header, Type: req.Inputs.Type})
+	channel, _, err := client(ctx).API.CreateChannel(ctx, &model.Channel{TeamId: req.Inputs.TeamID, Name: req.Inputs.Name, DisplayName: req.Inputs.DisplayName, Purpose: req.Inputs.Purpose, Header: req.Inputs.Header, Type: model.ChannelType(req.Inputs.Type)})
 	if err != nil {
 		return infer.CreateResponse[ChannelState]{}, err
 	}
@@ -58,7 +58,7 @@ func (Channel) Update(ctx context.Context, req infer.UpdateRequest[ChannelArgs, 
 	if req.DryRun {
 		return infer.UpdateResponse[ChannelState]{Output: state}, nil
 	}
-	_, _, err := client(ctx).API.UpdateChannel(ctx, &model.Channel{Id: req.ID, TeamId: req.Inputs.TeamID, Name: req.Inputs.Name, DisplayName: req.Inputs.DisplayName, Purpose: req.Inputs.Purpose, Header: req.Inputs.Header, Type: req.Inputs.Type})
+	_, _, err := client(ctx).API.UpdateChannel(ctx, &model.Channel{Id: req.ID, TeamId: req.Inputs.TeamID, Name: req.Inputs.Name, DisplayName: req.Inputs.DisplayName, Purpose: req.Inputs.Purpose, Header: req.Inputs.Header, Type: model.ChannelType(req.Inputs.Type)})
 	if err != nil {
 		return infer.UpdateResponse[ChannelState]{}, err
 	}
@@ -73,7 +73,7 @@ func (Channel) Read(ctx context.Context, req infer.ReadRequest[ChannelArgs, Chan
 	if err != nil {
 		return infer.ReadResponse[ChannelArgs, ChannelState]{}, err
 	}
-	inputs := ChannelArgs{TeamID: channel.TeamId, Name: channel.Name, DisplayName: channel.DisplayName, Purpose: channel.Purpose, Header: channel.Header, Type: channel.Type}
+	inputs := ChannelArgs{TeamID: channel.TeamId, Name: channel.Name, DisplayName: channel.DisplayName, Purpose: channel.Purpose, Header: channel.Header, Type: string(channel.Type)}
 	return infer.ReadResponse[ChannelArgs, ChannelState]{ID: req.ID, Inputs: inputs, State: ChannelState{ChannelArgs: inputs, ID: req.ID}}, nil
 }
 
