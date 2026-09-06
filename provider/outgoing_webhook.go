@@ -24,7 +24,6 @@ type OutgoingWebhookArgs struct {
 
 type OutgoingWebhookState struct {
 	OutgoingWebhookArgs
-	ID        string `pulumi:"id"`
 	CreatorID string `pulumi:"creatorId"`
 	Token     string `pulumi:"token" provider:"secret"`
 }
@@ -43,14 +42,13 @@ func (OutgoingWebhook) Create(ctx context.Context, req infer.CreateRequest[Outgo
 	if err != nil {
 		return infer.CreateResponse[OutgoingWebhookState]{}, err
 	}
-	state.ID = hook.Id
 	state.CreatorID = hook.CreatorId
 	state.Token = hook.Token
 	return infer.CreateResponse[OutgoingWebhookState]{ID: hook.Id, Output: state}, nil
 }
 
 func (OutgoingWebhook) Update(ctx context.Context, req infer.UpdateRequest[OutgoingWebhookArgs, OutgoingWebhookState]) (infer.UpdateResponse[OutgoingWebhookState], error) {
-	state := OutgoingWebhookState{OutgoingWebhookArgs: req.Inputs, ID: req.ID, CreatorID: req.State.CreatorID, Token: req.State.Token}
+	state := OutgoingWebhookState{OutgoingWebhookArgs: req.Inputs, CreatorID: req.State.CreatorID, Token: req.State.Token}
 	if req.DryRun {
 		return infer.UpdateResponse[OutgoingWebhookState]{Output: state}, nil
 	}
@@ -76,7 +74,7 @@ func (OutgoingWebhook) Read(ctx context.Context, req infer.ReadRequest[OutgoingW
 		Description: hook.Description, TriggerWords: []string(hook.TriggerWords), TriggerWhen: hook.TriggerWhen,
 		CallbackURLs: []string(hook.CallbackURLs), ContentType: hook.ContentType, Username: hook.Username, IconURL: hook.IconURL,
 	}
-	state := OutgoingWebhookState{OutgoingWebhookArgs: inputs, ID: hook.Id, CreatorID: hook.CreatorId, Token: hook.Token}
+	state := OutgoingWebhookState{OutgoingWebhookArgs: inputs, CreatorID: hook.CreatorId, Token: hook.Token}
 	return infer.ReadResponse[OutgoingWebhookArgs, OutgoingWebhookState]{ID: hook.Id, Inputs: inputs, State: state}, nil
 }
 

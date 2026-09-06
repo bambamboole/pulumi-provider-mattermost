@@ -20,7 +20,6 @@ type IncomingWebhookArgs struct {
 
 type IncomingWebhookState struct {
 	IncomingWebhookArgs
-	ID     string `pulumi:"id"`
 	TeamID string `pulumi:"teamId"`
 	UserID string `pulumi:"userId"`
 }
@@ -46,14 +45,13 @@ func (IncomingWebhook) Create(ctx context.Context, req infer.CreateRequest[Incom
 	if err != nil {
 		return infer.CreateResponse[IncomingWebhookState]{}, err
 	}
-	state.ID = hook.Id
 	state.TeamID = hook.TeamId
 	state.UserID = hook.UserId
 	return infer.CreateResponse[IncomingWebhookState]{ID: hook.Id, Output: state}, nil
 }
 
 func (IncomingWebhook) Update(ctx context.Context, req infer.UpdateRequest[IncomingWebhookArgs, IncomingWebhookState]) (infer.UpdateResponse[IncomingWebhookState], error) {
-	state := IncomingWebhookState{IncomingWebhookArgs: req.Inputs, ID: req.ID, TeamID: req.State.TeamID, UserID: req.State.UserID}
+	state := IncomingWebhookState{IncomingWebhookArgs: req.Inputs, TeamID: req.State.TeamID, UserID: req.State.UserID}
 	if req.DryRun {
 		return infer.UpdateResponse[IncomingWebhookState]{Output: state}, nil
 	}
@@ -83,7 +81,7 @@ func (IncomingWebhook) Read(ctx context.Context, req infer.ReadRequest[IncomingW
 		return infer.ReadResponse[IncomingWebhookArgs, IncomingWebhookState]{}, err
 	}
 	inputs := IncomingWebhookArgs{ChannelID: hook.ChannelId, DisplayName: hook.DisplayName, Description: hook.Description, Username: hook.Username, IconURL: hook.IconURL, ChannelLocked: hook.ChannelLocked}
-	state := IncomingWebhookState{IncomingWebhookArgs: inputs, ID: hook.Id, TeamID: hook.TeamId, UserID: hook.UserId}
+	state := IncomingWebhookState{IncomingWebhookArgs: inputs, TeamID: hook.TeamId, UserID: hook.UserId}
 	return infer.ReadResponse[IncomingWebhookArgs, IncomingWebhookState]{ID: hook.Id, Inputs: inputs, State: state}, nil
 }
 

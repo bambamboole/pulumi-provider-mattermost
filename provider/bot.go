@@ -75,15 +75,14 @@ func (Bot) Read(ctx context.Context, req infer.ReadRequest[BotArgs, BotState]) (
 	}
 	inputs := BotArgs{Username: bot.Username, DisplayName: bot.DisplayName, Description: bot.Description}
 	return infer.ReadResponse[BotArgs, BotState]{
-		ID: req.ID,
+		ID:     req.ID,
 		Inputs: inputs,
-		State: BotState{BotArgs: inputs, UserID: bot.UserId, OwnerID: bot.OwnerId},
+		State:  BotState{BotArgs: inputs, UserID: bot.UserId, OwnerID: bot.OwnerId},
 	}, nil
 }
 
 func (Bot) Delete(ctx context.Context, req infer.DeleteRequest[BotState]) (infer.DeleteResponse, error) {
-	responseBot, response, err := client(ctx).API.DisableBot(ctx, req.ID)
-	_ = responseBot
+	_, response, err := client(ctx).API.DisableBot(ctx, req.ID)
 	if err != nil && !isNotFound(response) {
 		return infer.DeleteResponse{}, err
 	}
