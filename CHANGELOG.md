@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.2.0...v0.3.0) (2026-09-06)
+
+
+### Features
+
+* manage user system roles and team/channel admins ([70fff6d](https://github.com/bambamboole/pulumi-provider-mattermost/commit/70fff6dc1b454ef0e6be80ecd02d25944a016341))
+
 ## [0.2.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.1.0...v0.2.0) (2026-09-06)
 
 
