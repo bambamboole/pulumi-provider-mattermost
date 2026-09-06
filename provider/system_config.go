@@ -108,64 +108,118 @@ func applySystemConfig(ctx context.Context, args SystemConfigArgs) error {
 }
 
 func applyServiceSettings(s *model.ServiceSettings, a SystemConfigArgs) {
-	if a.SiteURL != nil { s.SiteURL = a.SiteURL }
-	if a.ListenAddress != nil { s.ListenAddress = a.ListenAddress }
-	if a.MaximumLoginAttempts != nil { s.MaximumLoginAttempts = a.MaximumLoginAttempts }
-	if a.EnableOAuthServiceProvider != nil { s.EnableOAuthServiceProvider = a.EnableOAuthServiceProvider }
-	if a.EnableDynamicClientRegistration != nil { s.EnableDynamicClientRegistration = a.EnableDynamicClientRegistration }
-	if a.EnableIncomingWebhooks != nil { s.EnableIncomingWebhooks = a.EnableIncomingWebhooks }
-	if a.EnableOutgoingWebhooks != nil { s.EnableOutgoingWebhooks = a.EnableOutgoingWebhooks }
-	if a.EnableCommands != nil { s.EnableCommands = a.EnableCommands }
-	if a.OutgoingIntegrationRequestsTimeout != nil { s.OutgoingIntegrationRequestsTimeout = a.OutgoingIntegrationRequestsTimeout }
-	if a.EnablePostUsernameOverride != nil { s.EnablePostUsernameOverride = a.EnablePostUsernameOverride }
-	if a.EnablePostIconOverride != nil { s.EnablePostIconOverride = a.EnablePostIconOverride }
-	if a.EnableMultifactorAuthentication != nil { s.EnableMultifactorAuthentication = a.EnableMultifactorAuthentication }
-	if a.EnforceMultifactorAuthentication != nil { s.EnforceMultifactorAuthentication = a.EnforceMultifactorAuthentication }
-	if a.EnableUserAccessTokens != nil { s.EnableUserAccessTokens = a.EnableUserAccessTokens }
-	if a.MaximumPersonalAccessTokenLifetimeDays != nil { s.MaximumPersonalAccessTokenLifetimeDays = a.MaximumPersonalAccessTokenLifetimeDays }
-	if a.AllowCorsFrom != nil { s.AllowCorsFrom = a.AllowCorsFrom }
-	if a.CorsAllowCredentials != nil { s.CorsAllowCredentials = a.CorsAllowCredentials }
-	if a.SessionIdleTimeoutInMinutes != nil { s.SessionIdleTimeoutInMinutes = a.SessionIdleTimeoutInMinutes }
-	if a.EnableCustomEmoji != nil { s.EnableCustomEmoji = a.EnableCustomEmoji }
-	if a.EnableEmojiPicker != nil { s.EnableEmojiPicker = a.EnableEmojiPicker }
-	if a.EnableEmailInvitations != nil { s.EnableEmailInvitations = a.EnableEmailInvitations }
-	if a.DisableBotsWhenOwnerIsDeactivated != nil { s.DisableBotsWhenOwnerIsDeactivated = a.DisableBotsWhenOwnerIsDeactivated }
-	if a.EnableBotAccountCreation != nil { s.EnableBotAccountCreation = a.EnableBotAccountCreation }
-	if a.EnableAPITeamDeletion != nil { s.EnableAPITeamDeletion = a.EnableAPITeamDeletion }
-	if a.EnableAPIUserDeletion != nil { s.EnableAPIUserDeletion = a.EnableAPIUserDeletion }
-	if a.EnableAPIPostDeletion != nil { s.EnableAPIPostDeletion = a.EnableAPIPostDeletion }
-	if a.EnableAPIChannelDeletion != nil { s.EnableAPIChannelDeletion = a.EnableAPIChannelDeletion }
+	if a.SiteURL != nil {
+		s.SiteURL = a.SiteURL
+	}
+	if a.ListenAddress != nil {
+		s.ListenAddress = a.ListenAddress
+	}
+	if a.MaximumLoginAttempts != nil {
+		s.MaximumLoginAttempts = a.MaximumLoginAttempts
+	}
+	if a.EnableOAuthServiceProvider != nil {
+		s.EnableOAuthServiceProvider = a.EnableOAuthServiceProvider
+	}
+	if a.EnableDynamicClientRegistration != nil {
+		s.EnableDynamicClientRegistration = a.EnableDynamicClientRegistration
+	}
+	if a.EnableIncomingWebhooks != nil {
+		s.EnableIncomingWebhooks = a.EnableIncomingWebhooks
+	}
+	if a.EnableOutgoingWebhooks != nil {
+		s.EnableOutgoingWebhooks = a.EnableOutgoingWebhooks
+	}
+	if a.EnableCommands != nil {
+		s.EnableCommands = a.EnableCommands
+	}
+	if a.OutgoingIntegrationRequestsTimeout != nil {
+		s.OutgoingIntegrationRequestsTimeout = a.OutgoingIntegrationRequestsTimeout
+	}
+	if a.EnablePostUsernameOverride != nil {
+		s.EnablePostUsernameOverride = a.EnablePostUsernameOverride
+	}
+	if a.EnablePostIconOverride != nil {
+		s.EnablePostIconOverride = a.EnablePostIconOverride
+	}
+	if a.EnableMultifactorAuthentication != nil {
+		s.EnableMultifactorAuthentication = a.EnableMultifactorAuthentication
+	}
+	if a.EnforceMultifactorAuthentication != nil {
+		s.EnforceMultifactorAuthentication = a.EnforceMultifactorAuthentication
+	}
+	if a.EnableUserAccessTokens != nil {
+		s.EnableUserAccessTokens = a.EnableUserAccessTokens
+	}
+	if a.MaximumPersonalAccessTokenLifetimeDays != nil {
+		s.MaximumPersonalAccessTokenLifetimeDays = a.MaximumPersonalAccessTokenLifetimeDays
+	}
+	if a.AllowCorsFrom != nil {
+		s.AllowCorsFrom = a.AllowCorsFrom
+	}
+	if a.CorsAllowCredentials != nil {
+		s.CorsAllowCredentials = a.CorsAllowCredentials
+	}
+	if a.SessionIdleTimeoutInMinutes != nil {
+		s.SessionIdleTimeoutInMinutes = a.SessionIdleTimeoutInMinutes
+	}
+	if a.EnableCustomEmoji != nil {
+		s.EnableCustomEmoji = a.EnableCustomEmoji
+	}
+	if a.EnableEmojiPicker != nil {
+		s.EnableEmojiPicker = a.EnableEmojiPicker
+	}
+	if a.EnableEmailInvitations != nil {
+		s.EnableEmailInvitations = a.EnableEmailInvitations
+	}
+	if a.DisableBotsWhenOwnerIsDeactivated != nil {
+		s.DisableBotsWhenOwnerIsDeactivated = a.DisableBotsWhenOwnerIsDeactivated
+	}
+	if a.EnableBotAccountCreation != nil {
+		s.EnableBotAccountCreation = a.EnableBotAccountCreation
+	}
+	if a.EnableAPITeamDeletion != nil {
+		s.EnableAPITeamDeletion = a.EnableAPITeamDeletion
+	}
+	if a.EnableAPIUserDeletion != nil {
+		s.EnableAPIUserDeletion = a.EnableAPIUserDeletion
+	}
+	if a.EnableAPIPostDeletion != nil {
+		s.EnableAPIPostDeletion = a.EnableAPIPostDeletion
+	}
+	if a.EnableAPIChannelDeletion != nil {
+		s.EnableAPIChannelDeletion = a.EnableAPIChannelDeletion
+	}
 }
 
 func readSystemConfig(s model.ServiceSettings, declared SystemConfigArgs, all bool) SystemConfigArgs {
 	return SystemConfigArgs{
-		SiteURL: managed(declared.SiteURL, s.SiteURL, all),
-		ListenAddress: managed(declared.ListenAddress, s.ListenAddress, all),
-		MaximumLoginAttempts: managed(declared.MaximumLoginAttempts, s.MaximumLoginAttempts, all),
-		EnableOAuthServiceProvider: managed(declared.EnableOAuthServiceProvider, s.EnableOAuthServiceProvider, all),
-		EnableDynamicClientRegistration: managed(declared.EnableDynamicClientRegistration, s.EnableDynamicClientRegistration, all),
-		EnableIncomingWebhooks: managed(declared.EnableIncomingWebhooks, s.EnableIncomingWebhooks, all),
-		EnableOutgoingWebhooks: managed(declared.EnableOutgoingWebhooks, s.EnableOutgoingWebhooks, all),
-		EnableCommands: managed(declared.EnableCommands, s.EnableCommands, all),
-		OutgoingIntegrationRequestsTimeout: managed(declared.OutgoingIntegrationRequestsTimeout, s.OutgoingIntegrationRequestsTimeout, all),
-		EnablePostUsernameOverride: managed(declared.EnablePostUsernameOverride, s.EnablePostUsernameOverride, all),
-		EnablePostIconOverride: managed(declared.EnablePostIconOverride, s.EnablePostIconOverride, all),
-		EnableMultifactorAuthentication: managed(declared.EnableMultifactorAuthentication, s.EnableMultifactorAuthentication, all),
-		EnforceMultifactorAuthentication: managed(declared.EnforceMultifactorAuthentication, s.EnforceMultifactorAuthentication, all),
-		EnableUserAccessTokens: managed(declared.EnableUserAccessTokens, s.EnableUserAccessTokens, all),
+		SiteURL:                                managed(declared.SiteURL, s.SiteURL, all),
+		ListenAddress:                          managed(declared.ListenAddress, s.ListenAddress, all),
+		MaximumLoginAttempts:                   managed(declared.MaximumLoginAttempts, s.MaximumLoginAttempts, all),
+		EnableOAuthServiceProvider:             managed(declared.EnableOAuthServiceProvider, s.EnableOAuthServiceProvider, all),
+		EnableDynamicClientRegistration:        managed(declared.EnableDynamicClientRegistration, s.EnableDynamicClientRegistration, all),
+		EnableIncomingWebhooks:                 managed(declared.EnableIncomingWebhooks, s.EnableIncomingWebhooks, all),
+		EnableOutgoingWebhooks:                 managed(declared.EnableOutgoingWebhooks, s.EnableOutgoingWebhooks, all),
+		EnableCommands:                         managed(declared.EnableCommands, s.EnableCommands, all),
+		OutgoingIntegrationRequestsTimeout:     managed(declared.OutgoingIntegrationRequestsTimeout, s.OutgoingIntegrationRequestsTimeout, all),
+		EnablePostUsernameOverride:             managed(declared.EnablePostUsernameOverride, s.EnablePostUsernameOverride, all),
+		EnablePostIconOverride:                 managed(declared.EnablePostIconOverride, s.EnablePostIconOverride, all),
+		EnableMultifactorAuthentication:        managed(declared.EnableMultifactorAuthentication, s.EnableMultifactorAuthentication, all),
+		EnforceMultifactorAuthentication:       managed(declared.EnforceMultifactorAuthentication, s.EnforceMultifactorAuthentication, all),
+		EnableUserAccessTokens:                 managed(declared.EnableUserAccessTokens, s.EnableUserAccessTokens, all),
 		MaximumPersonalAccessTokenLifetimeDays: managed(declared.MaximumPersonalAccessTokenLifetimeDays, s.MaximumPersonalAccessTokenLifetimeDays, all),
-		AllowCorsFrom: managed(declared.AllowCorsFrom, s.AllowCorsFrom, all),
-		CorsAllowCredentials: managed(declared.CorsAllowCredentials, s.CorsAllowCredentials, all),
-		SessionIdleTimeoutInMinutes: managed(declared.SessionIdleTimeoutInMinutes, s.SessionIdleTimeoutInMinutes, all),
-		EnableCustomEmoji: managed(declared.EnableCustomEmoji, s.EnableCustomEmoji, all),
-		EnableEmojiPicker: managed(declared.EnableEmojiPicker, s.EnableEmojiPicker, all),
-		EnableEmailInvitations: managed(declared.EnableEmailInvitations, s.EnableEmailInvitations, all),
-		DisableBotsWhenOwnerIsDeactivated: managed(declared.DisableBotsWhenOwnerIsDeactivated, s.DisableBotsWhenOwnerIsDeactivated, all),
-		EnableBotAccountCreation: managed(declared.EnableBotAccountCreation, s.EnableBotAccountCreation, all),
-		EnableAPITeamDeletion: managed(declared.EnableAPITeamDeletion, s.EnableAPITeamDeletion, all),
-		EnableAPIUserDeletion: managed(declared.EnableAPIUserDeletion, s.EnableAPIUserDeletion, all),
-		EnableAPIPostDeletion: managed(declared.EnableAPIPostDeletion, s.EnableAPIPostDeletion, all),
-		EnableAPIChannelDeletion: managed(declared.EnableAPIChannelDeletion, s.EnableAPIChannelDeletion, all),
+		AllowCorsFrom:                          managed(declared.AllowCorsFrom, s.AllowCorsFrom, all),
+		CorsAllowCredentials:                   managed(declared.CorsAllowCredentials, s.CorsAllowCredentials, all),
+		SessionIdleTimeoutInMinutes:            managed(declared.SessionIdleTimeoutInMinutes, s.SessionIdleTimeoutInMinutes, all),
+		EnableCustomEmoji:                      managed(declared.EnableCustomEmoji, s.EnableCustomEmoji, all),
+		EnableEmojiPicker:                      managed(declared.EnableEmojiPicker, s.EnableEmojiPicker, all),
+		EnableEmailInvitations:                 managed(declared.EnableEmailInvitations, s.EnableEmailInvitations, all),
+		DisableBotsWhenOwnerIsDeactivated:      managed(declared.DisableBotsWhenOwnerIsDeactivated, s.DisableBotsWhenOwnerIsDeactivated, all),
+		EnableBotAccountCreation:               managed(declared.EnableBotAccountCreation, s.EnableBotAccountCreation, all),
+		EnableAPITeamDeletion:                  managed(declared.EnableAPITeamDeletion, s.EnableAPITeamDeletion, all),
+		EnableAPIUserDeletion:                  managed(declared.EnableAPIUserDeletion, s.EnableAPIUserDeletion, all),
+		EnableAPIPostDeletion:                  managed(declared.EnableAPIPostDeletion, s.EnableAPIPostDeletion, all),
+		EnableAPIChannelDeletion:               managed(declared.EnableAPIChannelDeletion, s.EnableAPIChannelDeletion, all),
 	}
 }
 

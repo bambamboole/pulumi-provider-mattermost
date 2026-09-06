@@ -97,9 +97,9 @@ func (OAuthApp) Read(ctx context.Context, req infer.ReadRequest[OAuthAppArgs, OA
 		secret = req.State.ClientSecret
 	}
 	return infer.ReadResponse[OAuthAppArgs, OAuthAppState]{
-		ID: req.ID,
+		ID:     req.ID,
 		Inputs: inputs,
-		State: OAuthAppState{OAuthAppArgs: inputs, ClientSecret: secret, CreatorID: app.CreatorId},
+		State:  OAuthAppState{OAuthAppArgs: inputs, ClientSecret: secret, CreatorID: app.CreatorId},
 	}, nil
 }
 

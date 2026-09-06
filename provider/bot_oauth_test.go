@@ -38,7 +38,7 @@ func TestOAuthAppReadPreservesClientSecret(t *testing.T) {
 	defer server.Close()
 
 	response, err := (OAuthApp{}).Read(testContext(t, server.URL), infer.ReadRequest[OAuthAppArgs, OAuthAppState]{
-		ID: "oauth-app-1",
+		ID:    "oauth-app-1",
 		State: OAuthAppState{ClientSecret: "existing-secret"},
 	})
 	if err != nil {
