@@ -34,6 +34,10 @@ export class TeamMember extends pulumi.CustomResource {
         return obj['__pulumiType'] === TeamMember.__pulumiType;
     }
 
+    /**
+     * Grant the team admin role to the member.
+     */
+    declare public readonly schemeAdmin: pulumi.Output<boolean | undefined>;
     declare public readonly teamId: pulumi.Output<string>;
     declare public readonly userId: pulumi.Output<string>;
 
@@ -54,13 +58,17 @@ export class TeamMember extends pulumi.CustomResource {
             if (args?.userId === undefined && !opts.urn) {
                 throw new Error("Missing required property 'userId'");
             }
+            resourceInputs["schemeAdmin"] = args?.schemeAdmin;
             resourceInputs["teamId"] = args?.teamId;
             resourceInputs["userId"] = args?.userId;
         } else {
+            resourceInputs["schemeAdmin"] = undefined /*out*/;
             resourceInputs["teamId"] = undefined /*out*/;
             resourceInputs["userId"] = undefined /*out*/;
         }
         opts = pulumi.mergeOptions(utilities.resourceOptsDefaults(), opts);
+        const replaceOnChanges = { replaceOnChanges: ["teamId", "userId"] };
+        opts = pulumi.mergeOptions(opts, replaceOnChanges);
         super(TeamMember.__pulumiType, name, resourceInputs, opts);
     }
 }
@@ -69,6 +77,10 @@ export class TeamMember extends pulumi.CustomResource {
  * The set of arguments for constructing a TeamMember resource.
  */
 export interface TeamMemberArgs {
+    /**
+     * Grant the team admin role to the member.
+     */
+    schemeAdmin?: pulumi.Input<boolean | undefined>;
     teamId: pulumi.Input<string>;
     userId: pulumi.Input<string>;
 }

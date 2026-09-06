@@ -35,6 +35,10 @@ export class ChannelMember extends pulumi.CustomResource {
     }
 
     declare public readonly channelId: pulumi.Output<string>;
+    /**
+     * Grant the channel admin role to the member.
+     */
+    declare public readonly schemeAdmin: pulumi.Output<boolean | undefined>;
     declare public readonly userId: pulumi.Output<string>;
 
     /**
@@ -55,12 +59,16 @@ export class ChannelMember extends pulumi.CustomResource {
                 throw new Error("Missing required property 'userId'");
             }
             resourceInputs["channelId"] = args?.channelId;
+            resourceInputs["schemeAdmin"] = args?.schemeAdmin;
             resourceInputs["userId"] = args?.userId;
         } else {
             resourceInputs["channelId"] = undefined /*out*/;
+            resourceInputs["schemeAdmin"] = undefined /*out*/;
             resourceInputs["userId"] = undefined /*out*/;
         }
         opts = pulumi.mergeOptions(utilities.resourceOptsDefaults(), opts);
+        const replaceOnChanges = { replaceOnChanges: ["channelId", "userId"] };
+        opts = pulumi.mergeOptions(opts, replaceOnChanges);
         super(ChannelMember.__pulumiType, name, resourceInputs, opts);
     }
 }
@@ -70,5 +78,9 @@ export class ChannelMember extends pulumi.CustomResource {
  */
 export interface ChannelMemberArgs {
     channelId: pulumi.Input<string>;
+    /**
+     * Grant the channel admin role to the member.
+     */
+    schemeAdmin?: pulumi.Input<boolean | undefined>;
     userId: pulumi.Input<string>;
 }

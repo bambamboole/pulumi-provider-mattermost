@@ -20,9 +20,9 @@ export MATTERMOST_TOKEN=<personal-access-token>
 
 - `mattermost:index:Team`
 - `mattermost:index:Channel`
-- `mattermost:index:User`
-- `mattermost:index:TeamMember`
-- `mattermost:index:ChannelMember`
+- `mattermost:index:User` (system roles via `roles`, see the `SystemRole` enum, e.g. `system_admin`)
+- `mattermost:index:TeamMember` (`schemeAdmin` grants team admin)
+- `mattermost:index:ChannelMember` (`schemeAdmin` grants channel admin)
 - `mattermost:index:IncomingWebhook`
 - `mattermost:index:OutgoingWebhook`
 - `mattermost:index:Bot`

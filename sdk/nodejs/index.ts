@@ -61,11 +61,16 @@ export const User: typeof import("./user").User = null as any;
 utilities.lazyLoad(exports, ["User"], () => require("./user"));
 
 
+// Export enums:
+export * from "./types/enums";
+
 // Export sub-modules:
 import * as config from "./config";
+import * as types from "./types";
 
 export {
     config,
+    types,
 };
 
 const _module = {
