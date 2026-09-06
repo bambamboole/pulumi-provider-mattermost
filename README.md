@@ -50,7 +50,7 @@ Releases follow the same flow as `pulumi-provider-coolify`:
 1. `release-please` maintains the release PR, changelog, version and `vX.Y.Z` tag.
 2. Pushing the release tag runs GoReleaser for Linux, macOS and Windows on amd64/arm64.
 3. The release workflow generates and attaches `schema.json`.
-4. The checked-in TypeScript SDK is built and published as `@bambamboole/mattermost` when `NPM_TOKEN` is configured.
+4. The checked-in TypeScript SDK is built and published as `@bambamboole/pulumi-mattermost` when `NPM_TOKEN` is configured.
 
 The repository expects `RELEASE_PLEASE_TOKEN` for release-please. `NPM_TOKEN` is optional; without it the release workflow performs an npm dry-run instead.
 

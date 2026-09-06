@@ -8,7 +8,7 @@ const path = require("path");
 const pkgPath = path.join(__dirname, "sdk", "nodejs", "package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
 
-pkg.name = "@bambamboole/mattermost";
+pkg.name = "@bambamboole/pulumi-mattermost";
 pkg.main = "index.js";
 pkg.types = "index.d.ts";
 pkg.publishConfig = { access: "public" };
