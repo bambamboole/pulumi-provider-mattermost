@@ -92,7 +92,7 @@ func TestUserReadPreservesPasswordInput(t *testing.T) {
 
 	ctx := testContext(t, server.URL)
 	response, err := (User{}).Read(ctx, infer.ReadRequest[UserArgs, UserState]{
-		ID: "user-1",
+		ID:     "user-1",
 		Inputs: UserArgs{Password: "super-secret"},
 	})
 	if err != nil {
