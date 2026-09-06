@@ -16,6 +16,14 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
+      - run: go mod tidy
       - run: go test ./...
       - run: go vet ./...
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-mod-files
+          path: |
+            go.mod
+            go.sum
