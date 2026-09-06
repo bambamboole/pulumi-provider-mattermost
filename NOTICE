@@ -1,0 +1,8 @@
+pulumi-provider-mattermost
+
+Apache License 2.0 contributions copyright (c) 2026 the authors
+(https://github.com/bambamboole/pulumi-provider-mattermost).
+
+This provider depends on the official Mattermost Go client module
+github.com/mattermost/mattermost/server/public, which is distributed under the
+Apache License 2.0. No Mattermost code is vendored.
