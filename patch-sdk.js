@@ -1,3 +1,7 @@
+// Normalizes the generated TypeScript SDK's package.json: sets the npm package
+// name and marks the package public. The SDK compiles into bin/ like the
+// official @pulumi packages; `make build-sdk` copies this file there for
+// publishing.
 const fs = require("fs");
 const path = require("path");
 
