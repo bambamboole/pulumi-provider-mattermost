@@ -1,5 +1,4 @@
 bin/
-dist/
+schema.json
 sdk/
-*.log
 .DS_Store
