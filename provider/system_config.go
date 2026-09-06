@@ -12,34 +12,33 @@ import (
 type SystemConfig struct{}
 
 type SystemConfigArgs struct {
-	SiteURL                              *string `pulumi:"siteUrl,optional"`
-	ListenAddress                        *string `pulumi:"listenAddress,optional"`
-	MaximumLoginAttempts                 *int    `pulumi:"maximumLoginAttempts,optional"`
-	EnableOAuthServiceProvider           *bool   `pulumi:"enableOAuthServiceProvider,optional"`
-	EnableDynamicClientRegistration      *bool   `pulumi:"enableDynamicClientRegistration,optional"`
-	EnableIncomingWebhooks               *bool   `pulumi:"enableIncomingWebhooks,optional"`
-	EnableOutgoingWebhooks               *bool   `pulumi:"enableOutgoingWebhooks,optional"`
-	EnableCommands                       *bool   `pulumi:"enableCommands,optional"`
-	OutgoingIntegrationRequestsTimeout   *int64  `pulumi:"outgoingIntegrationRequestsTimeout,optional"`
-	EnablePostUsernameOverride           *bool   `pulumi:"enablePostUsernameOverride,optional"`
-	EnablePostIconOverride               *bool   `pulumi:"enablePostIconOverride,optional"`
-	EnableMultifactorAuthentication      *bool   `pulumi:"enableMultifactorAuthentication,optional"`
-	EnforceMultifactorAuthentication     *bool   `pulumi:"enforceMultifactorAuthentication,optional"`
-	EnableUserAccessTokens               *bool   `pulumi:"enableUserAccessTokens,optional"`
-	MaximumPersonalAccessTokenLifetimeDays *int  `pulumi:"maximumPersonalAccessTokenLifetimeDays,optional"`
-	AllowCorsFrom                        *string `pulumi:"allowCorsFrom,optional"`
-	CorsAllowCredentials                 *bool   `pulumi:"corsAllowCredentials,optional"`
-	SessionIdleTimeoutInMinutes          *int    `pulumi:"sessionIdleTimeoutInMinutes,optional"`
-	EnableCustomEmoji                    *bool   `pulumi:"enableCustomEmoji,optional"`
-	EnableEmojiPicker                    *bool   `pulumi:"enableEmojiPicker,optional"`
-	EnableEmailInvitations               *bool   `pulumi:"enableEmailInvitations,optional"`
-	DisableBotsWhenOwnerIsDeactivated    *bool   `pulumi:"disableBotsWhenOwnerIsDeactivated,optional"`
-	EnableBotAccountCreation             *bool   `pulumi:"enableBotAccountCreation,optional"`
-	EnableAPITeamDeletion                *bool   `pulumi:"enableApiTeamDeletion,optional"`
-	EnableAPIUserDeletion                *bool   `pulumi:"enableApiUserDeletion,optional"`
-	EnableAPIPostDeletion                *bool   `pulumi:"enableApiPostDeletion,optional"`
-	EnableAPIChannelDeletion             *bool   `pulumi:"enableApiChannelDeletion,optional"`
-	EnableHardenedMode                   *bool   `pulumi:"enableHardenedMode,optional"`
+	SiteURL                                *string `pulumi:"siteUrl,optional"`
+	ListenAddress                          *string `pulumi:"listenAddress,optional"`
+	MaximumLoginAttempts                   *int    `pulumi:"maximumLoginAttempts,optional"`
+	EnableOAuthServiceProvider             *bool   `pulumi:"enableOAuthServiceProvider,optional"`
+	EnableDynamicClientRegistration        *bool   `pulumi:"enableDynamicClientRegistration,optional"`
+	EnableIncomingWebhooks                 *bool   `pulumi:"enableIncomingWebhooks,optional"`
+	EnableOutgoingWebhooks                 *bool   `pulumi:"enableOutgoingWebhooks,optional"`
+	EnableCommands                         *bool   `pulumi:"enableCommands,optional"`
+	OutgoingIntegrationRequestsTimeout     *int64  `pulumi:"outgoingIntegrationRequestsTimeout,optional"`
+	EnablePostUsernameOverride             *bool   `pulumi:"enablePostUsernameOverride,optional"`
+	EnablePostIconOverride                 *bool   `pulumi:"enablePostIconOverride,optional"`
+	EnableMultifactorAuthentication        *bool   `pulumi:"enableMultifactorAuthentication,optional"`
+	EnforceMultifactorAuthentication       *bool   `pulumi:"enforceMultifactorAuthentication,optional"`
+	EnableUserAccessTokens                 *bool   `pulumi:"enableUserAccessTokens,optional"`
+	MaximumPersonalAccessTokenLifetimeDays *int    `pulumi:"maximumPersonalAccessTokenLifetimeDays,optional"`
+	AllowCorsFrom                          *string `pulumi:"allowCorsFrom,optional"`
+	CorsAllowCredentials                   *bool   `pulumi:"corsAllowCredentials,optional"`
+	SessionIdleTimeoutInMinutes            *int    `pulumi:"sessionIdleTimeoutInMinutes,optional"`
+	EnableCustomEmoji                      *bool   `pulumi:"enableCustomEmoji,optional"`
+	EnableEmojiPicker                      *bool   `pulumi:"enableEmojiPicker,optional"`
+	EnableEmailInvitations                 *bool   `pulumi:"enableEmailInvitations,optional"`
+	DisableBotsWhenOwnerIsDeactivated      *bool   `pulumi:"disableBotsWhenOwnerIsDeactivated,optional"`
+	EnableBotAccountCreation               *bool   `pulumi:"enableBotAccountCreation,optional"`
+	EnableAPITeamDeletion                  *bool   `pulumi:"enableApiTeamDeletion,optional"`
+	EnableAPIUserDeletion                  *bool   `pulumi:"enableApiUserDeletion,optional"`
+	EnableAPIPostDeletion                  *bool   `pulumi:"enableApiPostDeletion,optional"`
+	EnableAPIChannelDeletion               *bool   `pulumi:"enableApiChannelDeletion,optional"`
 }
 
 type SystemConfigState struct {
@@ -136,7 +135,6 @@ func applyServiceSettings(s *model.ServiceSettings, a SystemConfigArgs) {
 	if a.EnableAPIUserDeletion != nil { s.EnableAPIUserDeletion = a.EnableAPIUserDeletion }
 	if a.EnableAPIPostDeletion != nil { s.EnableAPIPostDeletion = a.EnableAPIPostDeletion }
 	if a.EnableAPIChannelDeletion != nil { s.EnableAPIChannelDeletion = a.EnableAPIChannelDeletion }
-	if a.EnableHardenedMode != nil { s.EnableHardenedMode = a.EnableHardenedMode }
 }
 
 func readSystemConfig(s model.ServiceSettings, declared SystemConfigArgs, all bool) SystemConfigArgs {
@@ -168,7 +166,6 @@ func readSystemConfig(s model.ServiceSettings, declared SystemConfigArgs, all bo
 		EnableAPIUserDeletion: managed(declared.EnableAPIUserDeletion, s.EnableAPIUserDeletion, all),
 		EnableAPIPostDeletion: managed(declared.EnableAPIPostDeletion, s.EnableAPIPostDeletion, all),
 		EnableAPIChannelDeletion: managed(declared.EnableAPIChannelDeletion, s.EnableAPIChannelDeletion, all),
-		EnableHardenedMode: managed(declared.EnableHardenedMode, s.EnableHardenedMode, all),
 	}
 }
 
@@ -189,5 +186,5 @@ func systemConfigEmpty(a SystemConfigArgs) bool {
 		a.SessionIdleTimeoutInMinutes == nil && a.EnableCustomEmoji == nil && a.EnableEmojiPicker == nil &&
 		a.EnableEmailInvitations == nil && a.DisableBotsWhenOwnerIsDeactivated == nil && a.EnableBotAccountCreation == nil &&
 		a.EnableAPITeamDeletion == nil && a.EnableAPIUserDeletion == nil && a.EnableAPIPostDeletion == nil &&
-		a.EnableAPIChannelDeletion == nil && a.EnableHardenedMode == nil
+		a.EnableAPIChannelDeletion == nil
 }
