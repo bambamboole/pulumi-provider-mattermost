@@ -2,88 +2,89 @@ package provider
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 
 	"github.com/mattermost/mattermost/server/public/model"
-	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 
 	mm "github.com/bambamboole/pulumi-provider-mattermost/internal/mattermost"
 )
 
 const (
-	defaultBootstrapBotUsername      = "pulumi"
 	defaultBootstrapTokenDescription = "pulumi"
+	generatedPasswordLength          = 40
 )
 
-// Bootstrap obtains a system-admin bot token for a Mattermost server without
-// user interaction. On a fresh server it signs up the first account, which
-// Mattermost promotes to system admin; on a running server it logs in with
-// the admin credentials or uses an existing admin token. It then creates or
-// adopts the bot, applies its system roles and issues an access token.
+// Bootstrap obtains a personal access token of a system-admin user without
+// user interaction. The user is the account everything else is managed with:
+// unlike a bot it may create bots, and its token is an ordinary personal
+// access token. On a server without accounts the user is signed up as the
+// first account, which Mattermost promotes to system admin; on a running
+// server it is created or adopted through an existing admin token, or simply
+// logged in when its password is known.
 type Bootstrap struct{}
 
 type BootstrapArgs struct {
 	BaseURL          string       `pulumi:"baseUrl,optional"`
-	AdminUsername    string       `pulumi:"adminUsername"`
-	AdminEmail       string       `pulumi:"adminEmail"`
-	AdminPassword    string       `pulumi:"adminPassword,optional" provider:"secret"`
+	Username         string       `pulumi:"username" provider:"replaceOnChanges"`
+	Email            string       `pulumi:"email"`
+	Password         string       `pulumi:"password,optional" provider:"secret"`
 	AdminToken       string       `pulumi:"adminToken,optional" provider:"secret"`
-	BotUsername      string       `pulumi:"botUsername,optional" provider:"replaceOnChanges"`
-	BotDisplayName   string       `pulumi:"botDisplayName,optional"`
-	BotDescription   string       `pulumi:"botDescription,optional"`
 	Roles            []SystemRole `pulumi:"roles,optional"`
 	TokenDescription string       `pulumi:"tokenDescription,optional"`
 }
 
 type BootstrapState struct {
 	BootstrapArgs
-	AdminUserID string `pulumi:"adminUserId"`
-	BotUserID   string `pulumi:"botUserId"`
-	TokenID     string `pulumi:"tokenId"`
-	Token       string `pulumi:"token" provider:"secret"`
+	UserID            string `pulumi:"userId"`
+	GeneratedPassword string `pulumi:"generatedPassword,optional" provider:"secret"`
+	TokenID           string `pulumi:"tokenId"`
+	Token             string `pulumi:"token" provider:"secret"`
 }
 
 func (r *Bootstrap) Annotate(a infer.Annotator) {
 	a.SetToken("index", "Bootstrap")
-	a.Describe(&r, "Obtains a system-admin bot token without user interaction. On a fresh server the admin account is signed up as the first user (which Mattermost promotes to system admin); on a running server the admin credentials or an existing admin token are used. The bot is created or adopted, its system roles applied and an access token issued. The resource authenticates on its own, so its provider does not need a token. The resource ID is the bot's user ID.")
+	a.Describe(&r, "Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.")
 }
 
 func (args *BootstrapArgs) Annotate(a infer.Annotator) {
 	a.Describe(&args.BaseURL, "Base URL of the Mattermost instance. Defaults to the provider's base URL.")
-	a.Describe(&args.AdminUsername, "Username of the bootstrap admin. Created on a fresh server, used for login otherwise.")
-	a.Describe(&args.AdminEmail, "Email of the bootstrap admin. Only used when the account is created.")
-	a.Describe(&args.AdminPassword, "Password of the bootstrap admin. Required unless adminToken is set.")
-	a.Describe(&args.AdminToken, "Existing system-admin token (personal access or bot token) used instead of a password login.")
-	a.Describe(&args.BotUsername, "Username of the bot to create or adopt. Defaults to \"pulumi\".")
-	a.Describe(&args.BotDisplayName, "Display name of the bot.")
-	a.Describe(&args.BotDescription, "Description of the bot.")
-	a.Describe(&args.Roles, "System roles applied to the bot account. Defaults to [\"system_user\", \"system_admin\", \"system_post_all\"].")
-	a.Describe(&args.TokenDescription, "Description of the bot access token. Changing it rotates the token. Defaults to \"pulumi\".")
-	a.SetDefault(&args.BotUsername, defaultBootstrapBotUsername)
+	a.Describe(&args.Username, "Username of the admin user to sign up, create, or adopt. Changing it replaces the resource.")
+	a.Describe(&args.Email, "Email of the admin user.")
+	a.Describe(&args.Password, "Password of the admin user. Generated and kept in state when unset. Adopting an existing user through adminToken sets it.")
+	a.Describe(&args.AdminToken, "Token of an existing system admin (personal access or bot token), needed only to create or adopt the user on a server that already has accounts and to recover when the issued token was revoked.")
+	a.Describe(&args.Roles, "System roles of the user. Defaults to [\"system_user\", \"system_admin\"].")
+	a.Describe(&args.TokenDescription, "Description of the personal access token. Changing it rotates the token. Defaults to \"pulumi\".")
 	a.SetDefault(&args.TokenDescription, defaultBootstrapTokenDescription)
 }
 
 func (state *BootstrapState) Annotate(a infer.Annotator) {
-	a.Describe(&state.AdminUserID, "User ID of the bootstrap admin.")
-	a.Describe(&state.BotUserID, "User ID of the bot account.")
-	a.Describe(&state.TokenID, "ID of the issued access token.")
-	a.Describe(&state.Token, "The issued access token. Use it as the token of a second provider instance.")
+	a.Describe(&state.UserID, "ID of the admin user.")
+	a.Describe(&state.GeneratedPassword, "The generated password when none was configured.")
+	a.Describe(&state.TokenID, "ID of the issued personal access token.")
+	a.Describe(&state.Token, "The issued personal access token. Use it as the token of a second provider instance.")
 }
 
 func defaultBootstrapRoles() []SystemRole {
-	return normalizeRoles([]SystemRole{SystemRoleUser, SystemRoleAdmin, SystemRolePostAll})
+	return normalizeRoles([]SystemRole{SystemRoleUser, SystemRoleAdmin})
+}
+
+// effectivePassword is the configured password or the one generated on create.
+func (state BootstrapState) effectivePassword() string {
+	if state.Password != "" {
+		return state.Password
+	}
+	return state.GeneratedPassword
 }
 
 func (Bootstrap) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[BootstrapArgs], error) {
 	args, failures, err := infer.DefaultCheck[BootstrapArgs](ctx, req.NewInputs)
 	if err != nil {
 		return infer.CheckResponse[BootstrapArgs]{}, err
-	}
-	if args.BotUsername == "" {
-		args.BotUsername = defaultBootstrapBotUsername
 	}
 	if args.TokenDescription == "" {
 		args.TokenDescription = defaultBootstrapTokenDescription
@@ -93,9 +94,6 @@ func (Bootstrap) Check(ctx context.Context, req infer.CheckRequest) (infer.Check
 	} else {
 		args.Roles = normalizeRoles(args.Roles)
 	}
-	if strings.TrimSpace(args.AdminPassword) == "" && strings.TrimSpace(args.AdminToken) == "" {
-		failures = append(failures, p.CheckFailure{Property: "adminPassword", Reason: "either adminPassword or adminToken must be set"})
-	}
 	return infer.CheckResponse[BootstrapArgs]{Inputs: args, Failures: failures}, nil
 }
 
@@ -104,32 +102,33 @@ func (Bootstrap) Create(ctx context.Context, req infer.CreateRequest[BootstrapAr
 	if req.DryRun {
 		return infer.CreateResponse[BootstrapState]{Output: state}, nil
 	}
+	if req.Inputs.Password == "" {
+		password, err := generatePassword()
+		if err != nil {
+			return infer.CreateResponse[BootstrapState]{}, err
+		}
+		state.GeneratedPassword = password
+	}
 	baseURL := bootstrapBaseURL(ctx, req.Inputs)
-	admin, adminID, err := bootstrapAdminSession(ctx, baseURL, req.Inputs)
+	session, userID, err := bootstrapEnsureUser(ctx, baseURL, req.Inputs, state.effectivePassword())
 	if err != nil {
 		return infer.CreateResponse[BootstrapState]{}, err
 	}
-	state.AdminUserID = adminID
+	state.UserID = userID
 
-	bot, err := bootstrapEnsureBot(ctx, admin, req.Inputs)
-	if err != nil {
+	if err := bootstrapEnsureRoles(ctx, session, userID, req.Inputs.Roles); err != nil {
 		return infer.CreateResponse[BootstrapState]{}, err
 	}
-	state.BotUserID = bot.UserId
-	state.BotDisplayName = bot.DisplayName
-	state.BotDescription = bot.Description
-
-	if err := bootstrapEnsureRoles(ctx, admin, bot.UserId, req.Inputs.Roles); err != nil {
+	if err := bootstrapEnableUserAccessTokens(ctx, session); err != nil {
 		return infer.CreateResponse[BootstrapState]{}, err
 	}
-
-	token, _, err := admin.API.CreateUserAccessToken(ctx, bot.UserId, req.Inputs.TokenDescription, 0)
+	token, _, err := session.API.CreateUserAccessToken(ctx, userID, req.Inputs.TokenDescription, 0)
 	if err != nil {
-		return infer.CreateResponse[BootstrapState]{}, fmt.Errorf("mattermost: creating access token for bot %q: %w", req.Inputs.BotUsername, err)
+		return infer.CreateResponse[BootstrapState]{}, fmt.Errorf("mattermost: creating access token for %q: %w", req.Inputs.Username, err)
 	}
 	state.TokenID = token.Id
 	state.Token = token.Token
-	return infer.CreateResponse[BootstrapState]{ID: bot.UserId, Output: state}, nil
+	return infer.CreateResponse[BootstrapState]{ID: userID, Output: state}, nil
 }
 
 func (Bootstrap) Read(ctx context.Context, req infer.ReadRequest[BootstrapArgs, BootstrapState]) (infer.ReadResponse[BootstrapArgs, BootstrapState], error) {
@@ -143,30 +142,22 @@ func (Bootstrap) Read(ctx context.Context, req infer.ReadRequest[BootstrapArgs, 
 	}
 	me, response, err := client.API.GetMe(ctx, "")
 	if isUnauthorized(response) || isNotFound(response) {
-		// The token was revoked or the bot deleted: recreate on the next update.
+		// The token was revoked or the user removed: recreate on the next update.
 		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
 	}
 	if err != nil {
 		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, err
 	}
-	if me.Id != state.BotUserID || me.DeleteAt > 0 {
+	if me.Id != state.UserID || me.DeleteAt > 0 {
 		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
-	}
-	bot, response, err := client.API.GetBot(ctx, state.BotUserID, "")
-	if isNotFound(response) {
-		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
-	}
-	if err != nil {
-		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, err
 	}
 
 	inputs := req.Inputs
-	if inputs.AdminUsername == "" {
+	if inputs.Username == "" {
 		inputs = state.BootstrapArgs
 	}
-	inputs.BotUsername = bot.Username
-	inputs.BotDisplayName = bot.DisplayName
-	inputs.BotDescription = bot.Description
+	inputs.Username = me.Username
+	inputs.Email = me.Email
 	inputs.Roles = parseRoles(me.Roles)
 	state.BootstrapArgs = inputs
 	return infer.ReadResponse[BootstrapArgs, BootstrapState]{ID: req.ID, Inputs: inputs, State: state}, nil
@@ -174,57 +165,62 @@ func (Bootstrap) Read(ctx context.Context, req infer.ReadRequest[BootstrapArgs, 
 
 func (Bootstrap) Update(ctx context.Context, req infer.UpdateRequest[BootstrapArgs, BootstrapState]) (infer.UpdateResponse[BootstrapState], error) {
 	state := BootstrapState{
-		BootstrapArgs: req.Inputs,
-		AdminUserID:   req.State.AdminUserID,
-		BotUserID:     req.State.BotUserID,
-		TokenID:       req.State.TokenID,
-		Token:         req.State.Token,
+		BootstrapArgs:     req.Inputs,
+		UserID:            req.State.UserID,
+		GeneratedPassword: req.State.GeneratedPassword,
+		TokenID:           req.State.TokenID,
+		Token:             req.State.Token,
 	}
 	if req.DryRun {
 		return infer.UpdateResponse[BootstrapState]{Output: state}, nil
 	}
-	client, err := bootstrapManagementSession(ctx, req.State, req.Inputs)
+	session, err := bootstrapManagementSession(ctx, req.State)
 	if err != nil {
 		return infer.UpdateResponse[BootstrapState]{}, err
 	}
 
-	if req.Inputs.BotDisplayName != req.State.BotDisplayName || req.Inputs.BotDescription != req.State.BotDescription {
-		displayName := req.Inputs.BotDisplayName
-		description := req.Inputs.BotDescription
-		if _, _, err := client.API.PatchBot(ctx, state.BotUserID, &model.BotPatch{DisplayName: &displayName, Description: &description}); err != nil {
-			return infer.UpdateResponse[BootstrapState]{}, err
+	if req.Inputs.Email != req.State.Email {
+		email := req.Inputs.Email
+		if _, _, err := session.API.PatchUser(ctx, state.UserID, &model.UserPatch{Email: &email}); err != nil {
+			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: updating email: %w", err)
 		}
 	}
 	if !rolesEqual(req.State.Roles, req.Inputs.Roles) {
-		if _, err := client.API.UpdateUserRoles(ctx, state.BotUserID, joinRoles(req.Inputs.Roles)); err != nil {
+		if _, err := session.API.UpdateUserRoles(ctx, state.UserID, joinRoles(req.Inputs.Roles)); err != nil {
 			return infer.UpdateResponse[BootstrapState]{}, err
 		}
 	}
+	if req.Inputs.Password != "" && req.Inputs.Password != req.State.effectivePassword() {
+		if _, err := session.API.UpdateUserPassword(ctx, state.UserID, req.State.effectivePassword(), req.Inputs.Password); err != nil {
+			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: updating password: %w", err)
+		}
+		state.GeneratedPassword = ""
+	}
 	if req.Inputs.TokenDescription != req.State.TokenDescription {
-		token, _, err := client.API.CreateUserAccessToken(ctx, state.BotUserID, req.Inputs.TokenDescription, 0)
+		token, _, err := session.API.CreateUserAccessToken(ctx, state.UserID, req.Inputs.TokenDescription, 0)
 		if err != nil {
 			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: rotating access token: %w", err)
 		}
 		state.TokenID = token.Id
 		state.Token = token.Token
-		if response, err := client.API.RevokeUserAccessToken(ctx, req.State.TokenID); err != nil && !isNotFound(response) {
+		if response, err := session.API.RevokeUserAccessToken(ctx, req.State.TokenID); err != nil && !isNotFound(response) {
 			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: revoking previous access token: %w", err)
 		}
 	}
 	return infer.UpdateResponse[BootstrapState]{Output: state}, nil
 }
 
-// Delete revokes the access token. The bot and the admin account are kept:
-// they are cheap to reuse and deleting them would lock other integrations out.
+// Delete revokes the access token. The user is kept: deactivating an admin
+// account automatically is not worth the lock-out risk.
 func (Bootstrap) Delete(ctx context.Context, req infer.DeleteRequest[BootstrapState]) (infer.DeleteResponse, error) {
 	if req.State.TokenID == "" {
 		return infer.DeleteResponse{}, nil
 	}
-	client, err := bootstrapManagementSession(ctx, req.State, req.State.BootstrapArgs)
+	session, err := bootstrapManagementSession(ctx, req.State)
 	if err != nil {
 		return infer.DeleteResponse{}, err
 	}
-	response, err := client.API.RevokeUserAccessToken(ctx, req.State.TokenID)
+	response, err := session.API.RevokeUserAccessToken(ctx, req.State.TokenID)
 	if err != nil && !isNotFound(response) {
 		return infer.DeleteResponse{}, err
 	}
@@ -238,57 +234,69 @@ func bootstrapBaseURL(ctx context.Context, args BootstrapArgs) string {
 	return client(ctx).BaseURL
 }
 
-// bootstrapAdminSession returns an authenticated client for the bootstrap
-// admin and its user ID. An admin token wins over a password login; on a
-// server without any accounts the admin is signed up first.
-func bootstrapAdminSession(ctx context.Context, baseURL string, args BootstrapArgs) (*mm.Client, string, error) {
+// bootstrapEnsureUser returns an authenticated session that may manage the
+// admin user, and the user's ID. With adminToken the user is created or
+// adopted (and its password set to the known one); otherwise the user logs in
+// with its password, or is signed up as the first account of a fresh server.
+func bootstrapEnsureUser(ctx context.Context, baseURL string, args BootstrapArgs, password string) (*mm.Client, string, error) {
 	if strings.TrimSpace(args.AdminToken) != "" {
-		client, err := mm.New(baseURL, args.AdminToken)
+		admin, err := mm.New(baseURL, args.AdminToken)
 		if err != nil {
 			return nil, "", err
 		}
-		me, _, err := client.API.GetMe(ctx, "")
-		if err != nil {
+		if _, _, err := admin.API.GetMe(ctx, ""); err != nil {
 			return nil, "", fmt.Errorf("mattermost: adminToken was rejected: %w", err)
 		}
-		return client, me.Id, nil
+		user, response, err := admin.API.GetUserByUsername(ctx, args.Username, "")
+		switch {
+		case err == nil:
+			if user.IsBot {
+				return nil, "", fmt.Errorf("mattermost: user %q is a bot; choose another username", args.Username)
+			}
+			if _, err := admin.API.UpdateUserPassword(ctx, user.Id, "", password); err != nil {
+				return nil, "", fmt.Errorf("mattermost: setting the password of %q: %w", args.Username, err)
+			}
+			return admin, user.Id, nil
+		case isNotFound(response):
+			user, _, err := admin.API.CreateUser(ctx, &model.User{Username: args.Username, Email: args.Email, Password: password})
+			if err != nil {
+				return nil, "", fmt.Errorf("mattermost: creating user %q: %w", args.Username, err)
+			}
+			return admin, user.Id, nil
+		default:
+			return nil, "", err
+		}
 	}
 
 	anonymous, err := mm.NewAnonymous(baseURL)
 	if err != nil {
 		return nil, "", err
 	}
-	user, _, loginErr := anonymous.API.Login(ctx, args.AdminUsername, args.AdminPassword)
+	user, _, loginErr := anonymous.API.Login(ctx, args.Username, password)
 	if loginErr == nil {
 		return anonymous, user.Id, nil
 	}
-
 	config, _, err := anonymous.API.GetClientConfig(ctx, "")
 	if err != nil {
-		return nil, "", fmt.Errorf("mattermost: login as %q failed (%w) and the client configuration could not be read: %w", args.AdminUsername, loginErr, err)
+		return nil, "", fmt.Errorf("mattermost: login as %q failed (%w) and the client configuration could not be read: %w", args.Username, loginErr, err)
 	}
 	if config["NoAccounts"] != "true" {
-		return nil, "", fmt.Errorf("mattermost: login as %q failed and the server already has accounts; check adminPassword or provide adminToken: %w", args.AdminUsername, loginErr)
+		return nil, "", fmt.Errorf("mattermost: login as %q failed and the server already has accounts; set the user's password or provide adminToken: %w", args.Username, loginErr)
 	}
-	if _, _, err := anonymous.API.CreateUser(ctx, &model.User{
-		Username: args.AdminUsername,
-		Email:    args.AdminEmail,
-		Password: args.AdminPassword,
-	}); err != nil {
-		return nil, "", fmt.Errorf("mattermost: signing up the first admin %q: %w", args.AdminUsername, err)
+	if _, _, err := anonymous.API.CreateUser(ctx, &model.User{Username: args.Username, Email: args.Email, Password: password}); err != nil {
+		return nil, "", fmt.Errorf("mattermost: signing up the first admin %q: %w", args.Username, err)
 	}
-	user, _, err = anonymous.API.Login(ctx, args.AdminUsername, args.AdminPassword)
+	user, _, err = anonymous.API.Login(ctx, args.Username, password)
 	if err != nil {
-		return nil, "", fmt.Errorf("mattermost: login as the freshly created admin %q: %w", args.AdminUsername, err)
+		return nil, "", fmt.Errorf("mattermost: login as the freshly created admin %q: %w", args.Username, err)
 	}
 	return anonymous, user.Id, nil
 }
 
-// bootstrapManagementSession prefers the issued bot token, which carries the
-// declared roles, and falls back to the admin credentials when the token no
-// longer works.
-func bootstrapManagementSession(ctx context.Context, state BootstrapState, args BootstrapArgs) (*mm.Client, error) {
-	baseURL := bootstrapBaseURL(ctx, args)
+// bootstrapManagementSession prefers the issued token and falls back to the
+// user's password, then to adminToken, when the token no longer works.
+func bootstrapManagementSession(ctx context.Context, state BootstrapState) (*mm.Client, error) {
+	baseURL := bootstrapBaseURL(ctx, state.BootstrapArgs)
 	if state.Token != "" {
 		client, err := mm.New(baseURL, state.Token)
 		if err == nil {
@@ -297,58 +305,95 @@ func bootstrapManagementSession(ctx context.Context, state BootstrapState, args 
 			}
 		}
 	}
-	client, _, err := bootstrapAdminSession(ctx, baseURL, args)
-	return client, err
-}
-
-func bootstrapEnsureBot(ctx context.Context, admin *mm.Client, args BootstrapArgs) (*model.Bot, error) {
-	user, response, err := admin.API.GetUserByUsername(ctx, args.BotUsername, "")
-	switch {
-	case err == nil:
-		if !user.IsBot {
-			return nil, fmt.Errorf("mattermost: user %q exists and is not a bot; choose another botUsername", args.BotUsername)
-		}
-		bot, _, err := admin.API.GetBot(ctx, user.Id, "")
+	if password := state.effectivePassword(); password != "" {
+		anonymous, err := mm.NewAnonymous(baseURL)
 		if err != nil {
 			return nil, err
 		}
-		if (args.BotDisplayName != "" && args.BotDisplayName != bot.DisplayName) ||
-			(args.BotDescription != "" && args.BotDescription != bot.Description) {
-			displayName := firstNonEmpty(args.BotDisplayName, bot.DisplayName)
-			description := firstNonEmpty(args.BotDescription, bot.Description)
-			bot, _, err = admin.API.PatchBot(ctx, user.Id, &model.BotPatch{DisplayName: &displayName, Description: &description})
-			if err != nil {
-				return nil, err
-			}
+		if _, _, err := anonymous.API.Login(ctx, state.Username, password); err == nil {
+			return anonymous, nil
 		}
-		return bot, nil
-	case isNotFound(response):
-		bot, _, err := admin.API.CreateBot(ctx, &model.Bot{
-			Username:    args.BotUsername,
-			DisplayName: args.BotDisplayName,
-			Description: args.BotDescription,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("mattermost: creating bot %q: %w", args.BotUsername, err)
-		}
-		return bot, nil
-	default:
-		return nil, err
 	}
+	if strings.TrimSpace(state.AdminToken) != "" {
+		return mm.New(baseURL, state.AdminToken)
+	}
+	return nil, fmt.Errorf("mattermost: the token of %q no longer works and neither the password nor adminToken can log in", state.Username)
 }
 
-func bootstrapEnsureRoles(ctx context.Context, admin *mm.Client, userID string, roles []SystemRole) error {
-	user, _, err := admin.API.GetUser(ctx, userID, "")
+func bootstrapEnsureRoles(ctx context.Context, session *mm.Client, userID string, roles []SystemRole) error {
+	user, _, err := session.API.GetUser(ctx, userID, "")
 	if err != nil {
 		return err
 	}
 	if rolesEqual(parseRoles(user.Roles), roles) {
 		return nil
 	}
-	if _, err := admin.API.UpdateUserRoles(ctx, userID, joinRoles(roles)); err != nil {
-		return fmt.Errorf("mattermost: applying roles to bot: %w", err)
+	if _, err := session.API.UpdateUserRoles(ctx, userID, joinRoles(roles)); err != nil {
+		return fmt.Errorf("mattermost: applying roles: %w", err)
 	}
 	return nil
+}
+
+// Personal access tokens are disabled by default; bots are exempt but users
+// are not, so the setting is switched on before the first token is issued.
+func bootstrapEnableUserAccessTokens(ctx context.Context, session *mm.Client) error {
+	config, _, err := session.API.GetConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("mattermost: reading the server configuration: %w", err)
+	}
+	if config.ServiceSettings.EnableUserAccessTokens != nil && *config.ServiceSettings.EnableUserAccessTokens {
+		return nil
+	}
+	enabled := true
+	patch := &model.Config{}
+	patch.ServiceSettings.EnableUserAccessTokens = &enabled
+	if _, _, err := session.API.PatchConfig(ctx, patch); err != nil {
+		return fmt.Errorf("mattermost: enabling personal access tokens: %w", err)
+	}
+	return nil
+}
+
+// generatePassword returns a random password that satisfies every Mattermost
+// password policy: it contains lowercase, uppercase, digits and a symbol.
+func generatePassword() (string, error) {
+	classes := []string{
+		"abcdefghijklmnopqrstuvwxyz",
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		"0123456789",
+		"!#$%&*+-=?@^_~",
+	}
+	all := strings.Join(classes, "")
+	password := make([]byte, 0, generatedPasswordLength)
+	for _, class := range classes {
+		char, err := randomChar(class)
+		if err != nil {
+			return "", err
+		}
+		password = append(password, char)
+	}
+	for len(password) < generatedPasswordLength {
+		char, err := randomChar(all)
+		if err != nil {
+			return "", err
+		}
+		password = append(password, char)
+	}
+	for i := len(password) - 1; i > 0; i-- {
+		j, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			return "", err
+		}
+		password[i], password[j.Int64()] = password[j.Int64()], password[i]
+	}
+	return string(password), nil
+}
+
+func randomChar(alphabet string) (byte, error) {
+	index, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+	if err != nil {
+		return 0, fmt.Errorf("mattermost: generating password: %w", err)
+	}
+	return alphabet[index.Int64()], nil
 }
 
 func isUnauthorized(response *model.Response) bool {

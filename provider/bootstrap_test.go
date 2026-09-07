@@ -15,33 +15,49 @@ import (
 	mm "github.com/bambamboole/pulumi-provider-mattermost/internal/mattermost"
 )
 
+type fakeUser struct {
+	id       string
+	email    string
+	password string
+	roles    string
+	isBot    bool
+}
+
 // fakeMattermost is a minimal in-memory Mattermost API for the bootstrap flow.
 type fakeMattermost struct {
 	t *testing.T
 
-	mu        sync.Mutex
-	accounts  bool
-	adminID   string
-	bots      map[string]map[string]any // username -> bot json
-	roles     map[string]string         // user id -> roles
-	tokens    map[string]string         // token value -> user id
-	nextToken int
-	calls     []string
-	failToken bool // reject the stored bot token
+	mu           sync.Mutex
+	users        map[string]*fakeUser // username -> user
+	tokens       map[string]string    // token value -> user id
+	tokensOn     bool                 // ServiceSettings.EnableUserAccessTokens
+	nextToken    int
+	calls        []string
+	failToken    bool // reject every issued access token
+	failPassword bool // reject every password login
 }
 
 func newFakeMattermost(t *testing.T) *fakeMattermost {
-	return &fakeMattermost{
-		t:      t,
-		bots:   map[string]map[string]any{},
-		roles:  map[string]string{},
-		tokens: map[string]string{},
+	return &fakeMattermost{t: t, users: map[string]*fakeUser{}, tokens: map[string]string{}}
+}
+
+// addHumanAdmin adds an existing system admin and returns one of its tokens.
+func (f *fakeMattermost) addHumanAdmin() string {
+	f.users["human"] = &fakeUser{id: "user-human", email: "human@example.com", password: "human-secret", roles: "system_admin system_user"}
+	return f.issueToken("user-human")
+}
+
+func (f *fakeMattermost) byID(id string) (string, *fakeUser) {
+	for username, user := range f.users {
+		if user.id == id {
+			return username, user
+		}
 	}
+	return "", nil
 }
 
 func (f *fakeMattermost) authorizedUser(r *http.Request) (string, bool) {
-	header := r.Header.Get("Authorization")
-	parts := strings.SplitN(header, " ", 2)
+	parts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 		return "", false
 	}
@@ -54,6 +70,10 @@ func (f *fakeMattermost) issueToken(userID string) string {
 	token := "token-" + strings.Repeat("x", f.nextToken)
 	f.tokens[token] = userID
 	return token
+}
+
+func (f *fakeMattermost) userJSON(username string, user *fakeUser) map[string]any {
+	return map[string]any{"id": user.id, "username": username, "email": user.email, "roles": user.roles, "is_bot": user.isBot}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -71,109 +91,94 @@ func (f *fakeMattermost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, r.Method+" "+r.URL.Path)
 	path := strings.TrimPrefix(r.URL.Path, "/api/v4")
+	userID, authorized := f.authorizedUser(r)
+	if authorized && f.failToken && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer token-") {
+		if _, user := f.byID(userID); user != nil && !strings.HasPrefix(user.id, "user-human") {
+			authorized = false
+		}
+	}
 
 	switch {
 	case r.Method == http.MethodGet && path == "/config/client":
 		noAccounts := "false"
-		if !f.accounts {
+		if len(f.users) == 0 {
 			noAccounts = "true"
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"NoAccounts": noAccounts})
-		return
 	case r.Method == http.MethodPost && path == "/users/login":
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if !f.accounts || body["login_id"] != "admin" || body["password"] != "secret" {
+		user, ok := f.users[body["login_id"]]
+		if !ok || f.failPassword || user.password != body["password"] {
 			writeError(w, http.StatusUnauthorized, "api.user.login.invalid_credentials")
 			return
 		}
-		w.Header().Set("Token", f.issueToken(f.adminID))
-		writeJSON(w, http.StatusOK, map[string]any{"id": f.adminID, "username": "admin", "roles": f.roles[f.adminID]})
-		return
+		w.Header().Set("Token", f.issueToken(user.id))
+		writeJSON(w, http.StatusOK, f.userJSON(body["login_id"], user))
 	case r.Method == http.MethodPost && path == "/users":
-		if f.accounts {
-			writeError(w, http.StatusForbidden, "api.user.create_user.no_open_server")
-			return
-		}
-		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body["username"] != "admin" || body["email"] != "admin@example.com" || body["password"] != "secret" {
-			f.t.Errorf("unexpected signup body %v", body)
-		}
-		f.accounts = true
-		f.adminID = "admin-1"
-		f.roles[f.adminID] = "system_admin system_user"
-		writeJSON(w, http.StatusCreated, map[string]any{"id": f.adminID, "username": "admin", "roles": f.roles[f.adminID]})
-		return
-	}
-
-	userID, ok := f.authorizedUser(r)
-	if !ok || (f.failToken && strings.HasPrefix(userID, "bot-")) {
-		writeError(w, http.StatusUnauthorized, "api.context.session_expired.app_error")
-		return
-	}
-
-	switch {
-	case r.Method == http.MethodGet && path == "/users/me":
-		writeJSON(w, http.StatusOK, map[string]any{"id": userID, "roles": f.roles[userID], "is_bot": strings.HasPrefix(userID, "bot-")})
-	case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/username/"):
-		username := strings.TrimPrefix(path, "/users/username/")
-		if bot, ok := f.bots[username]; ok {
-			writeJSON(w, http.StatusOK, map[string]any{"id": bot["user_id"], "username": username, "is_bot": true, "roles": f.roles[bot["user_id"].(string)]})
-			return
-		}
-		if username == "admin" && f.accounts {
-			writeJSON(w, http.StatusOK, map[string]any{"id": f.adminID, "username": "admin", "roles": f.roles[f.adminID]})
-			return
-		}
-		writeError(w, http.StatusNotFound, "app.user.get_by_username.app_error")
-	case r.Method == http.MethodPost && path == "/bots":
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		username := body["username"].(string)
-		id := "bot-" + username
-		bot := map[string]any{"user_id": id, "username": username, "display_name": body["display_name"], "description": body["description"], "owner_id": userID}
-		f.bots[username] = bot
-		f.roles[id] = "system_user"
-		writeJSON(w, http.StatusCreated, bot)
-	case r.Method == http.MethodGet && strings.HasPrefix(path, "/bots/"):
-		for _, bot := range f.bots {
-			if bot["user_id"] == strings.TrimPrefix(path, "/bots/") {
-				writeJSON(w, http.StatusOK, bot)
-				return
-			}
+		user := &fakeUser{id: "user-" + username, email: body["email"].(string), password: body["password"].(string), roles: "system_user"}
+		switch {
+		case len(f.users) == 0:
+			user.roles = "system_admin system_user" // the first account becomes system admin
+		case !authorized:
+			writeError(w, http.StatusForbidden, "api.user.create_user.no_open_server")
+			return
 		}
-		writeError(w, http.StatusNotFound, "store.sql_bot.get.missing.app_error")
-	case r.Method == http.MethodPut && strings.HasPrefix(path, "/bots/"):
-		var patch map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&patch)
-		for _, bot := range f.bots {
-			if bot["user_id"] == strings.TrimPrefix(path, "/bots/") {
-				for _, key := range []string{"display_name", "description"} {
-					if value, ok := patch[key]; ok {
-						bot[key] = value
-					}
-				}
-				writeJSON(w, http.StatusOK, bot)
-				return
-			}
-		}
-		writeError(w, http.StatusNotFound, "store.sql_bot.get.missing.app_error")
-	case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/") && !strings.Contains(strings.TrimPrefix(path, "/users/"), "/"):
-		id := strings.TrimPrefix(path, "/users/")
-		roles, ok := f.roles[id]
+		f.users[username] = user
+		writeJSON(w, http.StatusCreated, f.userJSON(username, user))
+	case !authorized:
+		writeError(w, http.StatusUnauthorized, "api.context.session_expired.app_error")
+	case r.Method == http.MethodGet && path == "/users/me":
+		username, user := f.byID(userID)
+		writeJSON(w, http.StatusOK, f.userJSON(username, user))
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/username/"):
+		username := strings.TrimPrefix(path, "/users/username/")
+		user, ok := f.users[username]
 		if !ok {
+			writeError(w, http.StatusNotFound, "app.user.get_by_username.app_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, f.userJSON(username, user))
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/") && !strings.Contains(strings.TrimPrefix(path, "/users/"), "/"):
+		username, user := f.byID(strings.TrimPrefix(path, "/users/"))
+		if user == nil {
 			writeError(w, http.StatusNotFound, "app.user.missing_account.const")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"id": id, "roles": roles, "is_bot": strings.HasPrefix(id, "bot-")})
-	case r.Method == http.MethodPut && strings.HasSuffix(path, "/roles"):
+		writeJSON(w, http.StatusOK, f.userJSON(username, user))
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/patch"):
+		var patch map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&patch)
+		username, user := f.byID(strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/patch"))
+		if email, ok := patch["email"].(string); ok {
+			user.email = email
+		}
+		writeJSON(w, http.StatusOK, f.userJSON(username, user))
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/roles"):
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		id := strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/roles")
-		f.roles[id] = body["roles"]
+		_, user := f.byID(strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/roles"))
+		user.roles = body["roles"]
+		writeJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/password"):
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		targetID := strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password")
+		_, user := f.byID(targetID)
+		if targetID == userID && body["current_password"] != user.password {
+			writeError(w, http.StatusBadRequest, "api.user.update_password.incorrect.app_error")
+			return
+		}
+		user.password = body["new_password"]
 		writeJSON(w, http.StatusOK, map[string]string{"status": "OK"})
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tokens") && path != "/users/tokens":
+		if !f.tokensOn {
+			writeError(w, http.StatusNotImplemented, "api.user.create_user_access_token.disabled.app_error")
+			return
+		}
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		id := strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/tokens")
@@ -189,6 +194,15 @@ func (f *fakeMattermost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(f.tokens, token)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+	case r.Method == http.MethodGet && path == "/config":
+		writeJSON(w, http.StatusOK, map[string]any{"ServiceSettings": map[string]any{"EnableUserAccessTokens": f.tokensOn}})
+	case r.Method == http.MethodPut && path == "/config/patch":
+		var body map[string]map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if enabled, ok := body["ServiceSettings"]["EnableUserAccessTokens"].(bool); ok {
+			f.tokensOn = enabled
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ServiceSettings": map[string]any{"EnableUserAccessTokens": f.tokensOn}})
 	default:
 		f.t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		writeError(w, http.StatusNotFound, "unexpected")
@@ -206,17 +220,29 @@ func (f *fakeMattermost) called(call string) bool {
 	return false
 }
 
+func (f *fakeMattermost) resetCalls() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = nil
+}
+
 func bootstrapArgs(baseURL string) BootstrapArgs {
 	return BootstrapArgs{
 		BaseURL:          baseURL,
-		AdminUsername:    "admin",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "secret",
-		BotUsername:      "pulumi",
-		BotDisplayName:   "Pulumi",
+		Username:         "infrastructure",
+		Email:            "infrastructure@example.com",
 		Roles:            defaultBootstrapRoles(),
 		TokenDescription: "pulumi",
 	}
+}
+
+func create(t *testing.T, args BootstrapArgs) BootstrapState {
+	t.Helper()
+	response, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response.Output
 }
 
 func TestBootstrapCreateSignsUpFirstAdminOnFreshServer(t *testing.T) {
@@ -224,133 +250,140 @@ func TestBootstrapCreateSignsUpFirstAdminOnFreshServer(t *testing.T) {
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
-	response, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: bootstrapArgs(server.URL)})
-	if err != nil {
-		t.Fatal(err)
+	state := create(t, bootstrapArgs(server.URL))
+
+	user := fake.users["infrastructure"]
+	if user == nil || state.UserID != "user-infrastructure" || user.email != "infrastructure@example.com" {
+		t.Fatalf("expected the user to be signed up, state %#v", state)
 	}
-	if !fake.called("POST /api/v4/users") {
-		t.Fatal("expected the first admin to be signed up")
+	if len(state.GeneratedPassword) != generatedPasswordLength || user.password != state.GeneratedPassword {
+		t.Fatalf("expected a generated password to be set on the account, got %q", state.GeneratedPassword)
 	}
-	if response.ID != "bot-pulumi" || response.Output.BotUserID != "bot-pulumi" || response.Output.AdminUserID != "admin-1" {
-		t.Fatalf("unexpected state %#v", response.Output)
+	if !fake.tokensOn || !fake.called("PUT /api/v4/config/patch") {
+		t.Fatal("expected personal access tokens to be enabled")
 	}
-	if response.Output.Token == "" || fake.tokens[response.Output.Token] != "bot-pulumi" {
-		t.Fatalf("expected a bot token, got %#v", response.Output)
+	if fake.tokens[state.Token] != state.UserID || state.TokenID == "" {
+		t.Fatalf("expected a token of the user, got %#v", state)
 	}
-	if got := fake.roles["bot-pulumi"]; got != "system_admin system_post_all system_user" {
-		t.Fatalf("unexpected bot roles %q", got)
+	if fake.called("PUT /api/v4/users/user-infrastructure/roles") {
+		t.Fatal("the first account already is system admin; roles must not be rewritten")
 	}
 }
 
-func TestBootstrapCreateAdoptsExistingBotWithAdminToken(t *testing.T) {
+func TestBootstrapCreateCreatesUserWithAdminToken(t *testing.T) {
 	fake := newFakeMattermost(t)
-	fake.accounts = true
-	fake.adminID = "admin-1"
-	fake.roles["admin-1"] = "system_admin system_user"
-	fake.bots["pulumi"] = map[string]any{"user_id": "bot-pulumi", "username": "pulumi", "display_name": "Old", "description": "", "owner_id": "admin-1"}
-	fake.roles["bot-pulumi"] = "system_admin system_post_all system_user"
-	adminToken := fake.issueToken("admin-1")
+	adminToken := fake.addHumanAdmin()
+	fake.tokensOn = true
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
 	args := bootstrapArgs(server.URL)
-	args.AdminPassword = ""
 	args.AdminToken = adminToken
-	response, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: args})
-	if err != nil {
-		t.Fatal(err)
+	state := create(t, args)
+
+	if fake.called("POST /api/v4/users/login") || fake.called("GET /api/v4/config/client") {
+		t.Fatalf("adminToken must be used directly, calls: %v", fake.calls)
 	}
-	if fake.called("POST /api/v4/users") || fake.called("POST /api/v4/users/login") || fake.called("POST /api/v4/bots") {
-		t.Fatalf("expected the existing bot to be adopted, calls: %v", fake.calls)
+	user := fake.users["infrastructure"]
+	if user == nil || user.password != state.GeneratedPassword || user.roles != "system_admin system_user" {
+		t.Fatalf("unexpected user %#v", user)
 	}
-	if fake.called("PUT /api/v4/users/bot-pulumi/roles") {
-		t.Fatal("roles already matched and must not be rewritten")
+	if fake.called("PUT /api/v4/config/patch") {
+		t.Fatal("tokens were already enabled")
 	}
-	if fake.bots["pulumi"]["display_name"] != "Pulumi" {
-		t.Fatal("declared display name was not applied to the adopted bot")
-	}
-	if response.Output.BotDisplayName != "Pulumi" || response.Output.AdminUserID != "admin-1" || response.Output.Token == "" {
-		t.Fatalf("unexpected state %#v", response.Output)
+	if fake.tokens[state.Token] != "user-infrastructure" {
+		t.Fatal("token must belong to the new user, not the admin")
 	}
 }
 
-func TestBootstrapCreateLogsInWithPasswordOnExistingServer(t *testing.T) {
+func TestBootstrapCreateAdoptsExistingUserWithAdminToken(t *testing.T) {
 	fake := newFakeMattermost(t)
-	fake.accounts = true
-	fake.adminID = "admin-1"
-	fake.roles["admin-1"] = "system_admin system_user"
-	server := httptest.NewServer(fake)
-	defer server.Close()
-
-	response, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: bootstrapArgs(server.URL)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fake.called("POST /api/v4/users") {
-		t.Fatal("must not try to sign up on a server that has accounts")
-	}
-	if !fake.called("POST /api/v4/bots") || response.Output.BotUserID != "bot-pulumi" {
-		t.Fatalf("expected the bot to be created, state %#v", response.Output)
-	}
-}
-
-func TestBootstrapCreateRejectsWrongPasswordOnExistingServer(t *testing.T) {
-	fake := newFakeMattermost(t)
-	fake.accounts = true
-	fake.adminID = "admin-1"
+	adminToken := fake.addHumanAdmin()
+	fake.users["infrastructure"] = &fakeUser{id: "user-infrastructure", email: "old@example.com", password: "forgotten", roles: "system_user"}
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
 	args := bootstrapArgs(server.URL)
-	args.AdminPassword = "wrong"
+	args.AdminToken = adminToken
+	args.Password = "Configured-1!"
+	state := create(t, args)
+
+	if fake.called("POST /api/v4/users") {
+		t.Fatal("existing user must be adopted, not created")
+	}
+	user := fake.users["infrastructure"]
+	if user.password != "Configured-1!" || state.GeneratedPassword != "" {
+		t.Fatalf("expected the configured password to be set, got %q", user.password)
+	}
+	if user.roles != "system_admin system_user" {
+		t.Fatalf("expected roles to be applied, got %q", user.roles)
+	}
+	if fake.tokens[state.Token] != "user-infrastructure" || !fake.tokensOn {
+		t.Fatalf("expected an enabled user token, got %#v", state)
+	}
+}
+
+func TestBootstrapCreateRefusesBotUsername(t *testing.T) {
+	fake := newFakeMattermost(t)
+	adminToken := fake.addHumanAdmin()
+	fake.users["pulumi"] = &fakeUser{id: "bot-pulumi", roles: "system_user", isBot: true}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	args := bootstrapArgs(server.URL)
+	args.AdminToken = adminToken
+	args.Username = "pulumi"
 	_, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: args})
+	if err == nil || !strings.Contains(err.Error(), "is a bot") {
+		t.Fatalf("expected a bot error, got %v", err)
+	}
+}
+
+func TestBootstrapCreateLogsInWithKnownPassword(t *testing.T) {
+	fake := newFakeMattermost(t)
+	fake.addHumanAdmin()
+	fake.users["infrastructure"] = &fakeUser{id: "user-infrastructure", email: "infrastructure@example.com", password: "Known-1!", roles: "system_admin system_user"}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	args := bootstrapArgs(server.URL)
+	args.Password = "Known-1!"
+	state := create(t, args)
+
+	if !fake.called("POST /api/v4/users/login") || fake.called("POST /api/v4/users") {
+		t.Fatalf("expected a password login, calls: %v", fake.calls)
+	}
+	if fake.tokens[state.Token] != "user-infrastructure" || !fake.tokensOn {
+		t.Fatalf("expected the user's token, got %#v", state)
+	}
+}
+
+func TestBootstrapCreateFailsWithoutCredentialsOnExistingServer(t *testing.T) {
+	fake := newFakeMattermost(t)
+	fake.addHumanAdmin()
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	_, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: bootstrapArgs(server.URL)})
 	if err == nil || !strings.Contains(err.Error(), "already has accounts") {
-		t.Fatalf("expected a login error, got %v", err)
+		t.Fatalf("expected a credentials error, got %v", err)
 	}
 	if fake.called("POST /api/v4/users") {
 		t.Fatal("must not sign up when the server already has accounts")
 	}
 }
 
-func TestBootstrapCreateRefusesHumanUsername(t *testing.T) {
-	fake := newFakeMattermost(t)
-	fake.accounts = true
-	fake.adminID = "admin-1"
-	fake.roles["admin-1"] = "system_admin system_user"
-	server := httptest.NewServer(fake)
-	defer server.Close()
-
-	args := bootstrapArgs(server.URL)
-	args.BotUsername = "admin"
-	_, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: args})
-	if err == nil || !strings.Contains(err.Error(), "is not a bot") {
-		t.Fatalf("expected a not-a-bot error, got %v", err)
-	}
-}
-
-func bootstrappedState(t *testing.T, fake *fakeMattermost, baseURL string) BootstrapState {
-	t.Helper()
-	response, err := (Bootstrap{}).Create(context.Background(), infer.CreateRequest[BootstrapArgs]{Inputs: bootstrapArgs(baseURL)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	fake.mu.Lock()
-	fake.calls = nil
-	fake.mu.Unlock()
-	return response.Output
-}
-
 func TestBootstrapReadTreatsRevokedTokenAsGone(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	state := bootstrappedState(t, fake, server.URL)
+	state := create(t, bootstrapArgs(server.URL))
 
 	fake.mu.Lock()
 	delete(fake.tokens, state.Token)
 	fake.mu.Unlock()
 
-	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.BotUserID, Inputs: state.BootstrapArgs, State: state})
+	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: state})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,43 +392,45 @@ func TestBootstrapReadTreatsRevokedTokenAsGone(t *testing.T) {
 	}
 }
 
-func TestBootstrapReadSyncsBotAndRoles(t *testing.T) {
+func TestBootstrapReadSyncsUserAndKeepsSecrets(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	state := bootstrappedState(t, fake, server.URL)
+	state := create(t, bootstrapArgs(server.URL))
 
 	fake.mu.Lock()
-	fake.bots["pulumi"]["display_name"] = "Renamed"
-	fake.roles["bot-pulumi"] = "system_user"
+	fake.users["infrastructure"].email = "renamed@example.com"
+	fake.users["infrastructure"].roles = "system_user"
 	fake.mu.Unlock()
 
-	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.BotUserID, Inputs: state.BootstrapArgs, State: state})
+	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: state})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.ID != state.BotUserID || response.Inputs.BotDisplayName != "Renamed" {
+	if response.ID != state.UserID || response.Inputs.Email != "renamed@example.com" {
 		t.Fatalf("unexpected read result %#v", response.Inputs)
 	}
 	if !rolesEqual(response.Inputs.Roles, []SystemRole{SystemRoleUser}) {
 		t.Fatalf("expected drifted roles to be read back, got %v", response.Inputs.Roles)
 	}
-	if response.State.Token != state.Token || response.State.AdminPassword != "secret" {
-		t.Fatal("read must keep the token and admin credentials")
+	if response.State.Token != state.Token || response.State.GeneratedPassword != state.GeneratedPassword {
+		t.Fatal("read must keep the token and the generated password")
 	}
 }
 
-func TestBootstrapUpdateRotatesTokenAndAppliesRoles(t *testing.T) {
+func TestBootstrapUpdateRotatesTokenAndAppliesChanges(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	state := bootstrappedState(t, fake, server.URL)
+	state := create(t, bootstrapArgs(server.URL))
+	fake.resetCalls()
 
 	inputs := state.BootstrapArgs
 	inputs.TokenDescription = "pulumi-2"
-	inputs.Roles = normalizeRoles([]SystemRole{SystemRoleUser, SystemRoleAdmin})
-	inputs.BotDescription = "Managed by Pulumi"
-	response, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.BotUserID, Inputs: inputs, State: state})
+	inputs.Roles = normalizeRoles([]SystemRole{SystemRoleUser, SystemRoleAdmin, SystemRolePostAll})
+	inputs.Email = "ops@example.com"
+	inputs.Password = "Rotated-1!"
+	response, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: inputs, State: state})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,68 +440,101 @@ func TestBootstrapUpdateRotatesTokenAndAppliesRoles(t *testing.T) {
 	if _, stillValid := fake.tokens[state.Token]; stillValid {
 		t.Fatal("expected the previous token to be revoked")
 	}
-	if fake.tokens[response.Output.Token] != "bot-pulumi" {
-		t.Fatal("new token must belong to the bot")
+	user := fake.users["infrastructure"]
+	if user.roles != "system_admin system_post_all system_user" || user.email != "ops@example.com" {
+		t.Fatalf("unexpected user %#v", user)
 	}
-	if fake.roles["bot-pulumi"] != "system_admin system_user" {
-		t.Fatalf("unexpected roles %q", fake.roles["bot-pulumi"])
-	}
-	if fake.bots["pulumi"]["description"] != "Managed by Pulumi" {
-		t.Fatal("bot description was not patched")
+	if user.password != "Rotated-1!" || response.Output.GeneratedPassword != "" {
+		t.Fatalf("expected the configured password to replace the generated one, got %q", user.password)
 	}
 	if fake.called("POST /api/v4/users/login") {
-		t.Fatal("update must use the bot token while it is valid")
+		t.Fatal("update must use the token while it is valid")
 	}
 }
 
-func TestBootstrapUpdateFallsBackToAdminLogin(t *testing.T) {
+func TestBootstrapUpdateFallsBackToPasswordLogin(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	state := bootstrappedState(t, fake, server.URL)
+	state := create(t, bootstrapArgs(server.URL))
 	fake.failToken = true
 
 	inputs := state.BootstrapArgs
-	inputs.BotDescription = "changed"
-	if _, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.BotUserID, Inputs: inputs, State: state}); err != nil {
+	inputs.Email = "changed@example.com"
+	if _, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: inputs, State: state}); err != nil {
 		t.Fatal(err)
 	}
 	if !fake.called("POST /api/v4/users/login") {
-		t.Fatal("expected a fallback to the admin login")
+		t.Fatal("expected a fallback to the password login")
 	}
 }
 
-func TestBootstrapDeleteRevokesToken(t *testing.T) {
+func TestBootstrapUpdateFallsBackToAdminToken(t *testing.T) {
+	fake := newFakeMattermost(t)
+	adminToken := fake.addHumanAdmin()
+	fake.tokensOn = true
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	args := bootstrapArgs(server.URL)
+	args.AdminToken = adminToken
+	state := create(t, args)
+	fake.failToken = true
+	fake.failPassword = true
+
+	inputs := state.BootstrapArgs
+	inputs.Email = "changed@example.com"
+	if _, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: inputs, State: state}); err != nil {
+		t.Fatal(err)
+	}
+	if fake.users["infrastructure"].email != "changed@example.com" {
+		t.Fatal("expected the admin token to carry out the update")
+	}
+}
+
+func TestBootstrapDeleteRevokesTokenAndKeepsUser(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	state := bootstrappedState(t, fake, server.URL)
+	state := create(t, bootstrapArgs(server.URL))
 
-	if _, err := (Bootstrap{}).Delete(context.Background(), infer.DeleteRequest[BootstrapState]{ID: state.BotUserID, State: state}); err != nil {
+	if _, err := (Bootstrap{}).Delete(context.Background(), infer.DeleteRequest[BootstrapState]{ID: state.UserID, State: state}); err != nil {
 		t.Fatal(err)
 	}
 	if _, stillValid := fake.tokens[state.Token]; stillValid {
 		t.Fatal("expected the token to be revoked")
 	}
-	if _, botKept := fake.bots["pulumi"]; !botKept {
-		t.Fatal("delete must keep the bot")
+	if _, kept := fake.users["infrastructure"]; !kept {
+		t.Fatal("delete must keep the user")
 	}
 }
 
-func TestBootstrapCheckRequiresCredentialsAndAppliesDefaults(t *testing.T) {
-	inputs := mustInputs(t, map[string]string{"adminUsername": "admin", "adminEmail": "admin@example.com"})
+func TestBootstrapCheckAppliesDefaults(t *testing.T) {
+	inputs := mustInputs(t, map[string]string{"username": "infrastructure", "email": "infrastructure@example.com"})
 	response, err := (Bootstrap{}).Check(context.Background(), infer.CheckRequest{NewInputs: inputs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(response.Failures) != 1 || response.Failures[0].Property != "adminPassword" {
-		t.Fatalf("expected a credentials failure, got %#v", response.Failures)
+	if len(response.Failures) != 0 {
+		t.Fatalf("password and adminToken are optional, got %#v", response.Failures)
 	}
-	if response.Inputs.BotUsername != "pulumi" || response.Inputs.TokenDescription != "pulumi" {
+	if response.Inputs.TokenDescription != "pulumi" || !rolesEqual(response.Inputs.Roles, defaultBootstrapRoles()) {
 		t.Fatalf("defaults not applied: %#v", response.Inputs)
 	}
-	if !rolesEqual(response.Inputs.Roles, defaultBootstrapRoles()) {
-		t.Fatalf("default roles not applied: %v", response.Inputs.Roles)
+}
+
+func TestGeneratePasswordSatisfiesEveryPolicy(t *testing.T) {
+	for range 20 {
+		password, err := generatePassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(password) != generatedPasswordLength ||
+			!strings.ContainsAny(password, "abcdefghijklmnopqrstuvwxyz") ||
+			!strings.ContainsAny(password, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") ||
+			!strings.ContainsAny(password, "0123456789") ||
+			!strings.ContainsAny(password, "!#$%&*+-=?@^_~") {
+			t.Fatalf("weak password %q", password)
+		}
 	}
 }
 
