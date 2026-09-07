@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.5.0...v0.6.0) (2026-09-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* the bot inputs (adminUsername, adminEmail, adminPassword, botUsername, botDisplayName, botDescription) and outputs (botUserId, adminUserId) are replaced by username, email, password, userId and generatedPassword.
+
+### Features
+
+* bootstrap an admin user with a personal access token ([1b1e666](https://github.com/bambamboole/pulumi-provider-mattermost/commit/1b1e66624eb46ff38ba9dfefa28ef27bd767998a))
+
 ## [0.5.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.4.0...v0.5.0) (2026-09-07)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@bambamboole/pulumi-mattermost",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "homepage": "https://mattermost.com",
   "repository": "https://github.com/bambamboole/pulumi-provider-mattermost",
   "license": "Apache-2.0",
@@ -17,7 +17,7 @@
   "pulumi": {
     "resource": true,
     "name": "mattermost",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "server": "https://github.com/bambamboole/pulumi-provider-mattermost/releases/download/v$%7BVERSION%7D"
   },
   "main": "index.js",
