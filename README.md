@@ -18,26 +18,26 @@ export MATTERMOST_TOKEN=<personal-access-token>
 
 The token may be omitted for a provider instance that only creates a `Bootstrap` resource (see below); every other request then fails with `mattermost: missing token`.
 
-## Bootstrap: obtaining a system-admin token without user interaction
+## Bootstrap: obtaining an admin token without user interaction
 
-`mattermost:index:Bootstrap` gets a bot token with system-admin rights from a server nobody has logged in to yet, and it also adopts a server that is already running. It authenticates on its own:
+`mattermost:index:Bootstrap` gets a personal access token of a system-admin **user** from a server nobody has logged in to yet, and it also adopts a server that is already running. That user is the account everything else is managed with: unlike a bot it may create bots, and its token is an ordinary personal access token. The resource authenticates on its own:
 
-1. With `adminToken` set, that token is used. Otherwise it logs in with `adminUsername`/`adminPassword`. If the login fails and the server reports `NoAccounts` (no user exists yet), it signs the admin up through the unauthenticated `POST /api/v4/users`; Mattermost promotes the first account to system admin. The admin account is kept as the human login.
-2. The bot named `botUsername` (default `pulumi`) is created, or adopted if it already exists.
-3. The `roles` (default `system_user`, `system_admin`, `system_post_all`) are applied to the bot account.
-4. An access token described by `tokenDescription` is issued. Bot tokens are exempt from `EnableUserAccessTokens`.
+1. With `adminToken` set (any system admin's personal access or bot token), the user named `username` is created with `email`, or adopted if it already exists; adopting sets its password. Without `adminToken`, the user logs in with `password`. If that fails and the server reports `NoAccounts` (no user exists yet), the user is signed up through the unauthenticated `POST /api/v4/users`; Mattermost promotes the first account to system admin. Otherwise the resource fails with a message asking for the password or `adminToken`.
+2. `password` is optional. When unset, a 40-character password is generated and kept in state (`generatedPassword`, secret).
+3. The `roles` (default `system_user`, `system_admin`) are applied.
+4. Personal access tokens are enabled on the server when `ServiceSettings.EnableUserAccessTokens` is off, and a token described by `tokenDescription` (default `pulumi`) is issued.
 
-Outputs: `token` (secret), `tokenId`, `botUserId`, `adminUserId`. Changing `tokenDescription` rotates the token; refreshing detects a revoked token or deleted bot and recreates. Deleting the resource revokes the token and keeps the bot and the admin account.
+Outputs: `token` (secret), `tokenId`, `userId`, `generatedPassword` (secret). Changing `tokenDescription` rotates the token, changing `email`, `roles` or `password` updates the user, changing `username` replaces the resource. Refreshing detects a revoked token or a deleted user and recreates; recovery then needs the configured `password` or `adminToken`, because the generated password is gone with the state entry. Deleting the resource revokes the token and keeps the user.
 
 Use two provider instances: one without a token for the bootstrap, one fed by its output for everything else.
 
 ```typescript
 const bootstrapProvider = new mattermost.Provider("mattermost-bootstrap", { baseUrl });
-const bootstrap = new mattermost.Bootstrap("pulumi", {
-    adminUsername: "admin",
-    adminEmail: "admin@example.com",
-    adminPassword: config.requireSecret("mattermostAdminPassword"),
-    // adminToken: config.requireSecret("existingAdminToken"), // alternative on a running server
+const bootstrap = new mattermost.Bootstrap("infrastructure", {
+    username: "infrastructure",
+    email: "infrastructure@example.com",
+    // Only needed while the server already has accounts and the user does not exist yet:
+    adminToken: config.requireSecret("existingAdminToken"),
 }, { provider: bootstrapProvider, protect: true });
 
 const provider = new mattermost.Provider("mattermost", { baseUrl, token: bootstrap.token });
@@ -56,7 +56,7 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:Bot` (system roles via `roles`; unset leaves the roles of existing bots untouched)
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
-- `mattermost:index:Bootstrap` (first admin signup or login, bot, roles and token; see above)
+- `mattermost:index:Bootstrap` (admin user with a personal access token; see above)
 
 ## Development
 

@@ -8,7 +8,7 @@ import * as enums from "./types/enums";
 import * as utilities from "./utilities";
 
 /**
- * Obtains a system-admin bot token without user interaction. On a fresh server the admin account is signed up as the first user (which Mattermost promotes to system admin); on a running server the admin credentials or an existing admin token are used. The bot is created or adopted, its system roles applied and an access token issued. The resource authenticates on its own, so its provider does not need a token. The resource ID is the bot's user ID.
+ * Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.
  */
 export class Bootstrap extends pulumi.CustomResource {
     /**
@@ -38,61 +38,49 @@ export class Bootstrap extends pulumi.CustomResource {
     }
 
     /**
-     * Email of the bootstrap admin. Only used when the account is created.
-     */
-    declare public readonly adminEmail: pulumi.Output<string>;
-    /**
-     * Password of the bootstrap admin. Required unless adminToken is set.
-     */
-    declare public readonly adminPassword: pulumi.Output<string | undefined>;
-    /**
-     * Existing system-admin token (personal access or bot token) used instead of a password login.
+     * Token of an existing system admin (personal access or bot token), needed only to create or adopt the user on a server that already has accounts and to recover when the issued token was revoked.
      */
     declare public readonly adminToken: pulumi.Output<string | undefined>;
-    /**
-     * User ID of the bootstrap admin.
-     */
-    declare public /*out*/ readonly adminUserId: pulumi.Output<string>;
-    /**
-     * Username of the bootstrap admin. Created on a fresh server, used for login otherwise.
-     */
-    declare public readonly adminUsername: pulumi.Output<string>;
     /**
      * Base URL of the Mattermost instance. Defaults to the provider's base URL.
      */
     declare public readonly baseUrl: pulumi.Output<string | undefined>;
     /**
-     * Description of the bot.
+     * Email of the admin user.
      */
-    declare public readonly botDescription: pulumi.Output<string | undefined>;
+    declare public readonly email: pulumi.Output<string>;
     /**
-     * Display name of the bot.
+     * The generated password when none was configured.
      */
-    declare public readonly botDisplayName: pulumi.Output<string | undefined>;
+    declare public /*out*/ readonly generatedPassword: pulumi.Output<string | undefined>;
     /**
-     * User ID of the bot account.
+     * Password of the admin user. Generated and kept in state when unset. Adopting an existing user through adminToken sets it.
      */
-    declare public /*out*/ readonly botUserId: pulumi.Output<string>;
+    declare public readonly password: pulumi.Output<string | undefined>;
     /**
-     * Username of the bot to create or adopt. Defaults to "pulumi".
-     */
-    declare public readonly botUsername: pulumi.Output<string>;
-    /**
-     * System roles applied to the bot account. Defaults to ["system_user", "system_admin", "system_post_all"].
+     * System roles of the user. Defaults to ["system_user", "system_admin"].
      */
     declare public readonly roles: pulumi.Output<enums.SystemRole[] | undefined>;
     /**
-     * The issued access token. Use it as the token of a second provider instance.
+     * The issued personal access token. Use it as the token of a second provider instance.
      */
     declare public /*out*/ readonly token: pulumi.Output<string>;
     /**
-     * Description of the bot access token. Changing it rotates the token. Defaults to "pulumi".
+     * Description of the personal access token. Changing it rotates the token. Defaults to "pulumi".
      */
     declare public readonly tokenDescription: pulumi.Output<string>;
     /**
-     * ID of the issued access token.
+     * ID of the issued personal access token.
      */
     declare public /*out*/ readonly tokenId: pulumi.Output<string>;
+    /**
+     * ID of the admin user.
+     */
+    declare public /*out*/ readonly userId: pulumi.Output<string>;
+    /**
+     * Username of the admin user to sign up, create, or adopt. Changing it replaces the resource.
+     */
+    declare public readonly username: pulumi.Output<string>;
 
     /**
      * Create a Bootstrap resource with the given unique name, arguments, and options.
@@ -105,46 +93,40 @@ export class Bootstrap extends pulumi.CustomResource {
         let resourceInputs: pulumi.Inputs = {};
         opts = opts || {};
         if (!opts.id) {
-            if (args?.adminEmail === undefined && !opts.urn) {
-                throw new Error("Missing required property 'adminEmail'");
+            if (args?.email === undefined && !opts.urn) {
+                throw new Error("Missing required property 'email'");
             }
-            if (args?.adminUsername === undefined && !opts.urn) {
-                throw new Error("Missing required property 'adminUsername'");
+            if (args?.username === undefined && !opts.urn) {
+                throw new Error("Missing required property 'username'");
             }
-            resourceInputs["adminEmail"] = args?.adminEmail;
-            resourceInputs["adminPassword"] = args?.adminPassword ? pulumi.secret(args.adminPassword) : undefined;
             resourceInputs["adminToken"] = args?.adminToken ? pulumi.secret(args.adminToken) : undefined;
-            resourceInputs["adminUsername"] = args?.adminUsername;
             resourceInputs["baseUrl"] = args?.baseUrl;
-            resourceInputs["botDescription"] = args?.botDescription;
-            resourceInputs["botDisplayName"] = args?.botDisplayName;
-            resourceInputs["botUsername"] = (args?.botUsername) ?? "pulumi";
+            resourceInputs["email"] = args?.email;
+            resourceInputs["password"] = args?.password ? pulumi.secret(args.password) : undefined;
             resourceInputs["roles"] = args?.roles;
             resourceInputs["tokenDescription"] = (args?.tokenDescription) ?? "pulumi";
-            resourceInputs["adminUserId"] = undefined /*out*/;
-            resourceInputs["botUserId"] = undefined /*out*/;
+            resourceInputs["username"] = args?.username;
+            resourceInputs["generatedPassword"] = undefined /*out*/;
             resourceInputs["token"] = undefined /*out*/;
             resourceInputs["tokenId"] = undefined /*out*/;
+            resourceInputs["userId"] = undefined /*out*/;
         } else {
-            resourceInputs["adminEmail"] = undefined /*out*/;
-            resourceInputs["adminPassword"] = undefined /*out*/;
             resourceInputs["adminToken"] = undefined /*out*/;
-            resourceInputs["adminUserId"] = undefined /*out*/;
-            resourceInputs["adminUsername"] = undefined /*out*/;
             resourceInputs["baseUrl"] = undefined /*out*/;
-            resourceInputs["botDescription"] = undefined /*out*/;
-            resourceInputs["botDisplayName"] = undefined /*out*/;
-            resourceInputs["botUserId"] = undefined /*out*/;
-            resourceInputs["botUsername"] = undefined /*out*/;
+            resourceInputs["email"] = undefined /*out*/;
+            resourceInputs["generatedPassword"] = undefined /*out*/;
+            resourceInputs["password"] = undefined /*out*/;
             resourceInputs["roles"] = undefined /*out*/;
             resourceInputs["token"] = undefined /*out*/;
             resourceInputs["tokenDescription"] = undefined /*out*/;
             resourceInputs["tokenId"] = undefined /*out*/;
+            resourceInputs["userId"] = undefined /*out*/;
+            resourceInputs["username"] = undefined /*out*/;
         }
         opts = pulumi.mergeOptions(utilities.resourceOptsDefaults(), opts);
-        const secretOpts = { additionalSecretOutputs: ["adminPassword", "adminToken", "token"] };
+        const secretOpts = { additionalSecretOutputs: ["adminToken", "generatedPassword", "password", "token"] };
         opts = pulumi.mergeOptions(opts, secretOpts);
-        const replaceOnChanges = { replaceOnChanges: ["botUsername"] };
+        const replaceOnChanges = { replaceOnChanges: ["username"] };
         opts = pulumi.mergeOptions(opts, replaceOnChanges);
         super(Bootstrap.__pulumiType, name, resourceInputs, opts);
     }
@@ -155,43 +137,31 @@ export class Bootstrap extends pulumi.CustomResource {
  */
 export interface BootstrapArgs {
     /**
-     * Email of the bootstrap admin. Only used when the account is created.
-     */
-    adminEmail: pulumi.Input<string>;
-    /**
-     * Password of the bootstrap admin. Required unless adminToken is set.
-     */
-    adminPassword?: pulumi.Input<string | undefined>;
-    /**
-     * Existing system-admin token (personal access or bot token) used instead of a password login.
+     * Token of an existing system admin (personal access or bot token), needed only to create or adopt the user on a server that already has accounts and to recover when the issued token was revoked.
      */
     adminToken?: pulumi.Input<string | undefined>;
-    /**
-     * Username of the bootstrap admin. Created on a fresh server, used for login otherwise.
-     */
-    adminUsername: pulumi.Input<string>;
     /**
      * Base URL of the Mattermost instance. Defaults to the provider's base URL.
      */
     baseUrl?: pulumi.Input<string | undefined>;
     /**
-     * Description of the bot.
+     * Email of the admin user.
      */
-    botDescription?: pulumi.Input<string | undefined>;
+    email: pulumi.Input<string>;
     /**
-     * Display name of the bot.
+     * Password of the admin user. Generated and kept in state when unset. Adopting an existing user through adminToken sets it.
      */
-    botDisplayName?: pulumi.Input<string | undefined>;
+    password?: pulumi.Input<string | undefined>;
     /**
-     * Username of the bot to create or adopt. Defaults to "pulumi".
-     */
-    botUsername?: pulumi.Input<string | undefined>;
-    /**
-     * System roles applied to the bot account. Defaults to ["system_user", "system_admin", "system_post_all"].
+     * System roles of the user. Defaults to ["system_user", "system_admin"].
      */
     roles?: pulumi.Input<pulumi.Input<enums.SystemRole>[] | undefined>;
     /**
-     * Description of the bot access token. Changing it rotates the token. Defaults to "pulumi".
+     * Description of the personal access token. Changing it rotates the token. Defaults to "pulumi".
      */
     tokenDescription?: pulumi.Input<string | undefined>;
+    /**
+     * Username of the admin user to sign up, create, or adopt. Changing it replaces the resource.
+     */
+    username: pulumi.Input<string>;
 }
