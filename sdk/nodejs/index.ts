@@ -30,6 +30,11 @@ export type ChannelMember = import("./channelMember").ChannelMember;
 export const ChannelMember: typeof import("./channelMember").ChannelMember = null as any;
 utilities.lazyLoad(exports, ["ChannelMember"], () => require("./channelMember"));
 
+export { CommandArgs } from "./command";
+export type Command = import("./command").Command;
+export const Command: typeof import("./command").Command = null as any;
+utilities.lazyLoad(exports, ["Command"], () => require("./command"));
+
 export { IncomingWebhookArgs } from "./incomingWebhook";
 export type IncomingWebhook = import("./incomingWebhook").IncomingWebhook;
 export const IncomingWebhook: typeof import("./incomingWebhook").IncomingWebhook = null as any;
@@ -97,6 +102,8 @@ const _module = {
                 return new Channel(name, <any>undefined, { urn })
             case "mattermost:index:ChannelMember":
                 return new ChannelMember(name, <any>undefined, { urn })
+            case "mattermost:index:Command":
+                return new Command(name, <any>undefined, { urn })
             case "mattermost:index:IncomingWebhook":
                 return new IncomingWebhook(name, <any>undefined, { urn })
             case "mattermost:index:OAuthApp":

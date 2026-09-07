@@ -53,6 +53,7 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:ChannelMember` (`schemeAdmin` grants channel admin)
 - `mattermost:index:IncomingWebhook`
 - `mattermost:index:OutgoingWebhook`
+- `mattermost:index:Command` (custom slash command of a team; the token Mattermost sends to the URL is kept in state as a secret)
 - `mattermost:index:Bot` (system roles via `roles`; unset leaves the roles of existing bots untouched)
 - `mattermost:index:AccessToken` (personal access token of a user or bot, e.g. a bot token for an integration; the value is kept in state as a secret, changing `userId` or `description` replaces it)
 - `mattermost:index:OAuthApp`
