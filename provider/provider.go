@@ -19,6 +19,7 @@ func New() (p.Provider, error) {
 			infer.Resource(ChannelMember{}),
 			infer.Resource(IncomingWebhook{}),
 			infer.Resource(OutgoingWebhook{}),
+			infer.Resource(Command{}),
 			infer.Resource(Bot{}),
 			infer.Resource(AccessToken{}),
 			infer.Resource(OAuthApp{}),
