@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.7.0...v0.8.0) (2026-09-07)
+
+
+### Features
+
+* add Command resource for custom slash commands ([df3fe48](https://github.com/bambamboole/pulumi-provider-mattermost/commit/df3fe483dc1cb6af032ad77f83f7a2b6a51c5cd5))
+
 ## [0.7.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.6.0...v0.7.0) (2026-09-07)
 
 
