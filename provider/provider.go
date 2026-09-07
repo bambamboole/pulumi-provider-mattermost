@@ -20,6 +20,7 @@ func New() (p.Provider, error) {
 			infer.Resource(IncomingWebhook{}),
 			infer.Resource(OutgoingWebhook{}),
 			infer.Resource(Bot{}),
+			infer.Resource(AccessToken{}),
 			infer.Resource(OAuthApp{}),
 			infer.Resource(SystemConfig{}),
 			infer.Resource(Bootstrap{}),

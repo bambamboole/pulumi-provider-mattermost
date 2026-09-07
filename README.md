@@ -54,6 +54,7 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:IncomingWebhook`
 - `mattermost:index:OutgoingWebhook`
 - `mattermost:index:Bot` (system roles via `roles`; unset leaves the roles of existing bots untouched)
+- `mattermost:index:AccessToken` (personal access token of a user or bot, e.g. a bot token for an integration; the value is kept in state as a secret, changing `userId` or `description` replaces it)
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
 - `mattermost:index:Bootstrap` (admin user with a personal access token; see above)

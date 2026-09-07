@@ -5,6 +5,11 @@ import * as pulumi from "@pulumi/pulumi";
 import * as utilities from "./utilities";
 
 // Export members:
+export { AccessTokenArgs } from "./accessToken";
+export type AccessToken = import("./accessToken").AccessToken;
+export const AccessToken: typeof import("./accessToken").AccessToken = null as any;
+utilities.lazyLoad(exports, ["AccessToken"], () => require("./accessToken"));
+
 export { BootstrapArgs } from "./bootstrap";
 export type Bootstrap = import("./bootstrap").Bootstrap;
 export const Bootstrap: typeof import("./bootstrap").Bootstrap = null as any;
@@ -82,6 +87,8 @@ const _module = {
     version: utilities.getVersion(),
     construct: (name: string, type: string, urn: string): pulumi.Resource => {
         switch (type) {
+            case "mattermost:index:AccessToken":
+                return new AccessToken(name, <any>undefined, { urn })
             case "mattermost:index:Bootstrap":
                 return new Bootstrap(name, <any>undefined, { urn })
             case "mattermost:index:Bot":

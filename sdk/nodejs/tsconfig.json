@@ -19,6 +19,7 @@
         "skipLibCheck": true
     },
     "files": [
+        "accessToken.ts",
         "bootstrap.ts",
         "bot.ts",
         "channel.ts",
