@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.4.0...v0.5.0) (2026-09-07)
+
+
+### Features
+
+* manage bot system roles ([40a8686](https://github.com/bambamboole/pulumi-provider-mattermost/commit/40a8686940d2fd1b1c94d99e90254a2cf3ed40d6))
+
 ## [0.4.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.3.0...v0.4.0) (2026-09-06)
 
 
