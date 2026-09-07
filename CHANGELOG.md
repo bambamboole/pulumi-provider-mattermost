@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.6.0...v0.7.0) (2026-09-07)
+
+
+### Features
+
+* add AccessToken resource for user and bot tokens ([013aab5](https://github.com/bambamboole/pulumi-provider-mattermost/commit/013aab568a0ff6bcb7603ced25f6faa5bee9d4bc))
+
 ## [0.6.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.5.0...v0.6.0) (2026-09-07)
 
 
