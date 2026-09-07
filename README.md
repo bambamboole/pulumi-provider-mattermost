@@ -53,7 +53,7 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:ChannelMember` (`schemeAdmin` grants channel admin)
 - `mattermost:index:IncomingWebhook`
 - `mattermost:index:OutgoingWebhook`
-- `mattermost:index:Bot`
+- `mattermost:index:Bot` (system roles via `roles`; unset leaves the roles of existing bots untouched)
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
 - `mattermost:index:Bootstrap` (first admin signup or login, bot, roles and token; see above)
