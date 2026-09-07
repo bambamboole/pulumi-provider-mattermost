@@ -2,10 +2,13 @@
 // *** Do not edit by hand unless you're certain you know what you are doing! ***
 
 import * as pulumi from "@pulumi/pulumi";
+import * as inputs from "./types/input";
+import * as outputs from "./types/output";
+import * as enums from "./types/enums";
 import * as utilities from "./utilities";
 
 /**
- * A Mattermost bot account.
+ * A Mattermost bot account. A bot is a user account with a bot flag: the bot API owns username, display name and description, while system roles live on the user account and are applied through the roles endpoint when `roles` is set.
  */
 export class Bot extends pulumi.CustomResource {
     /**
@@ -37,6 +40,10 @@ export class Bot extends pulumi.CustomResource {
     declare public readonly description: pulumi.Output<string | undefined>;
     declare public readonly displayName: pulumi.Output<string | undefined>;
     declare public /*out*/ readonly ownerId: pulumi.Output<string>;
+    /**
+     * System roles applied to the bot's user account, e.g. ["system_user", "system_admin", "system_post_all"]. When unset, the roles are left as they are and never read back, so existing bots keep the roles granted outside Pulumi.
+     */
+    declare public readonly roles: pulumi.Output<enums.SystemRole[] | undefined>;
     declare public /*out*/ readonly userId: pulumi.Output<string>;
     declare public readonly username: pulumi.Output<string>;
 
@@ -56,6 +63,7 @@ export class Bot extends pulumi.CustomResource {
             }
             resourceInputs["description"] = args?.description;
             resourceInputs["displayName"] = args?.displayName;
+            resourceInputs["roles"] = args?.roles;
             resourceInputs["username"] = args?.username;
             resourceInputs["ownerId"] = undefined /*out*/;
             resourceInputs["userId"] = undefined /*out*/;
@@ -63,6 +71,7 @@ export class Bot extends pulumi.CustomResource {
             resourceInputs["description"] = undefined /*out*/;
             resourceInputs["displayName"] = undefined /*out*/;
             resourceInputs["ownerId"] = undefined /*out*/;
+            resourceInputs["roles"] = undefined /*out*/;
             resourceInputs["userId"] = undefined /*out*/;
             resourceInputs["username"] = undefined /*out*/;
         }
@@ -77,5 +86,9 @@ export class Bot extends pulumi.CustomResource {
 export interface BotArgs {
     description?: pulumi.Input<string | undefined>;
     displayName?: pulumi.Input<string | undefined>;
+    /**
+     * System roles applied to the bot's user account, e.g. ["system_user", "system_admin", "system_post_all"]. When unset, the roles are left as they are and never read back, so existing bots keep the roles granted outside Pulumi.
+     */
+    roles?: pulumi.Input<pulumi.Input<enums.SystemRole>[] | undefined>;
     username: pulumi.Input<string>;
 }
