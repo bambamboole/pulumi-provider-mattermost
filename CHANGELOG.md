@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.3.0...v0.4.0) (2026-09-06)
+
+
+### Features
+
+* add Bootstrap resource for a system-admin bot token ([d515c36](https://github.com/bambamboole/pulumi-provider-mattermost/commit/d515c36e65693d3a914ed16e70648ce94f5e5db6)), closes [#10](https://github.com/bambamboole/pulumi-provider-mattermost/issues/10)
+
 ## [0.3.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.2.0...v0.3.0) (2026-09-06)
 
 
