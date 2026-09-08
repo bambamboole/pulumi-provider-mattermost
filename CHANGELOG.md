@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.9.0...v0.10.0) (2026-09-08)
+
+
+### Features
+
+* add AgentsConfig and Agent resources for the Agents plugin ([2306292](https://github.com/bambamboole/pulumi-provider-mattermost/commit/23062928859e31f81ad62d0452ccaedb475b18c5))
+* repair the Bootstrap token instead of recreating the user ([50378fd](https://github.com/bambamboole/pulumi-provider-mattermost/commit/50378fd94ec9c1fc6b7d9ffaaf5959c4a0c27b48))
+
 ## [0.9.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.8.0...v0.9.0) (2026-09-08)
 
 
