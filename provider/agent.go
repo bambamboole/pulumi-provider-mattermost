@@ -74,6 +74,7 @@ type AgentArgs struct {
 	DisableTools            bool              `pulumi:"disableTools,optional"`
 	EnabledNativeTools      []string          `pulumi:"enabledNativeTools,optional"`
 	AutoEnableNewMCPTools   bool              `pulumi:"autoEnableNewMcpTools,optional"`
+	MCPDynamicToolLoading   bool              `pulumi:"mcpDynamicToolLoading,optional"`
 	ReasoningEnabled        bool              `pulumi:"reasoningEnabled,optional"`
 	ReasoningEffort         string            `pulumi:"reasoningEffort,optional"`
 	ThinkingBudget          int               `pulumi:"thinkingBudget,optional"`
@@ -107,6 +108,7 @@ func (args *AgentArgs) Annotate(a infer.Annotator) {
 	a.Describe(&args.DisableTools, "Disable tool calling.")
 	a.Describe(&args.EnabledNativeTools, "Names of the plugin's built-in tools the agent may call; none when unset.")
 	a.Describe(&args.AutoEnableNewMCPTools, "Give the agent every configured MCP tool, including ones added later.")
+	a.Describe(&args.MCPDynamicToolLoading, "Let the agent discover and load MCP tools on demand instead of receiving every tool definition up front.")
 	a.Describe(&args.ReasoningEnabled, "Enable extended reasoning where the model supports it.")
 	a.Describe(&args.ReasoningEffort, "Reasoning effort for models that support it, for example `low`, `medium` or `high`.")
 	a.Describe(&args.ThinkingBudget, "Thinking token budget for models that support it; 0 lets the plugin choose.")
@@ -222,10 +224,10 @@ type agentJSON struct {
 	ThinkingBudget          int      `json:"thinkingBudget"`
 	StructuredOutputEnabled bool     `json:"structuredOutputEnabled"`
 	MaxToolTurns            int      `json:"maxToolTurns"`
+	MCPDynamicToolLoading   bool     `json:"mcpDynamicToolLoading"`
 	BotUserID               string   `json:"botUserID"`
 	// Not managed; carried over on update.
-	EnabledMCPTools       []any `json:"enabledMCPTools"`
-	MCPDynamicToolLoading bool  `json:"mcpDynamicToolLoading"`
+	EnabledMCPTools []any `json:"enabledMCPTools"`
 }
 
 func (agent agentJSON) args() AgentArgs {
@@ -245,6 +247,7 @@ func (agent agentJSON) args() AgentArgs {
 		DisableTools:            agent.DisableTools,
 		EnabledNativeTools:      agent.EnabledNativeTools,
 		AutoEnableNewMCPTools:   agent.AutoEnableNewMCPTools,
+		MCPDynamicToolLoading:   agent.MCPDynamicToolLoading,
 		ReasoningEnabled:        agent.ReasoningEnabled,
 		ReasoningEffort:         agent.ReasoningEffort,
 		ThinkingBudget:          agent.ThinkingBudget,
@@ -278,7 +281,7 @@ func agentRequestJSON(args AgentArgs, current agentJSON) map[string]any {
 		"enabledNativeTools":      nonNilList(args.EnabledNativeTools),
 		"autoEnableNewMCPTools":   args.AutoEnableNewMCPTools,
 		"enabledMCPTools":         enabledMCPTools,
-		"mcpDynamicToolLoading":   current.MCPDynamicToolLoading,
+		"mcpDynamicToolLoading":   args.MCPDynamicToolLoading,
 		"reasoningEnabled":        args.ReasoningEnabled,
 		"reasoningEffort":         args.ReasoningEffort,
 		"thinkingBudget":          args.ThinkingBudget,

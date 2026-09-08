@@ -100,7 +100,7 @@ Since version 2.5 the Agents plugin (`mattermost-ai`) keeps its LLM services and
 
 `mattermost:index:AgentsConfig` is a singleton (ID `mattermost-ai`) that replaces the plugin's service list and sets the declared switches; everything else the endpoint holds (MCP servers, web search, embedding search, legacy bots) is read before writing and kept. Deleting the resource keeps the configuration, because agents keep referring to the services.
 
-`mattermost:index:Agent` creates an agent through the agents endpoint: a bot account named `username` backed by `serviceId`. Access levels are `all`, `allow`, `block` or `none`, combined with `channelIds`, `userIds` and `teamIds`. Updates replace the agent as the endpoint does; the MCP tool selection made in the Agents UI is carried over because it is not managed. Without an E20 or Enterprise license the plugin allows one agent per server. Deleting the resource removes the agent and its bot account.
+`mattermost:index:Agent` creates an agent through the agents endpoint: a bot account named `username` backed by `serviceId`. Access levels are `all`, `allow`, `block` or `none`, combined with `channelIds`, `userIds` and `teamIds`. Updates replace the agent as the endpoint does; the MCP tool selection made in the Agents UI is carried over because it is not managed, while `autoEnableNewMcpTools` and `mcpDynamicToolLoading` are. Without an E20 or Enterprise license the plugin allows one agent per server. Deleting the resource removes the agent and its bot account.
 
 ```typescript
 const agents = new mattermost.Plugin("agents", { pluginId: "mattermost-ai" }, { provider });

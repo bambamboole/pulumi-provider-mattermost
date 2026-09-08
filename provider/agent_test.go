@@ -42,15 +42,16 @@ func accessLevel(level AgentAccessLevel) *AgentAccessLevel {
 
 func agentArgs() AgentArgs {
 	return AgentArgs{
-		Username:           "ai",
-		DisplayName:        "AI",
-		ServiceID:          "openrouter",
-		CustomInstructions: "Be brief.",
-		ChannelAccessLevel: accessLevel(AgentAccessBlock),
-		ChannelIDs:         []string{"chan-1"},
-		UserAccessLevel:    accessLevel(AgentAccessAll),
-		EnableVision:       true,
-		EnabledNativeTools: []string{"search"},
+		Username:              "ai",
+		DisplayName:           "AI",
+		ServiceID:             "openrouter",
+		CustomInstructions:    "Be brief.",
+		ChannelAccessLevel:    accessLevel(AgentAccessBlock),
+		ChannelIDs:            []string{"chan-1"},
+		UserAccessLevel:       accessLevel(AgentAccessAll),
+		EnableVision:          true,
+		EnabledNativeTools:    []string{"search"},
+		MCPDynamicToolLoading: true,
 	}
 }
 
@@ -157,8 +158,11 @@ func TestAgentUpdateReplacesTheAgentAndCarriesMCPToolsOver(t *testing.T) {
 	if body["displayName"] != "Assistant" || body["channelAccessLevel"] != float64(0) || !reflect.DeepEqual(body["channelIDs"], []any{}) {
 		t.Fatalf("unexpected body: %#v", body)
 	}
-	if body["mcpDynamicToolLoading"] != true || len(body["enabledMCPTools"].([]any)) != 1 {
+	if len(body["enabledMCPTools"].([]any)) != 1 {
 		t.Fatalf("the MCP tool selection must be carried over: %#v", body)
+	}
+	if body["mcpDynamicToolLoading"] != true {
+		t.Fatalf("declared MCP settings must be sent: %#v", body)
 	}
 	if response.Output.DisplayName != "Assistant" || response.Output.BotUserID != "bot-user-1" {
 		t.Fatalf("unexpected state: %#v", response.Output)
