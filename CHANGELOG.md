@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.8.0...v0.9.0) (2026-09-08)
+
+
+### Features
+
+* add Plugin resource for marketplace and URL installs ([8d524f3](https://github.com/bambamboole/pulumi-provider-mattermost/commit/8d524f392865627d1265e3ea0c36a74d716bb17f))
+
 ## [0.8.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.7.0...v0.8.0) (2026-09-07)
 
 
