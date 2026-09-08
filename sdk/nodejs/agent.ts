@@ -82,6 +82,10 @@ export class Agent extends pulumi.CustomResource {
      */
     declare public readonly maxToolTurns: pulumi.Output<number | undefined>;
     /**
+     * Let the agent discover and load MCP tools on demand instead of receiving every tool definition up front.
+     */
+    declare public readonly mcpDynamicToolLoading: pulumi.Output<boolean | undefined>;
+    /**
      * Model to use; the service's default model when unset.
      */
     declare public readonly model: pulumi.Output<string | undefined>;
@@ -152,6 +156,7 @@ export class Agent extends pulumi.CustomResource {
             resourceInputs["enableVision"] = args?.enableVision;
             resourceInputs["enabledNativeTools"] = args?.enabledNativeTools;
             resourceInputs["maxToolTurns"] = args?.maxToolTurns;
+            resourceInputs["mcpDynamicToolLoading"] = args?.mcpDynamicToolLoading;
             resourceInputs["model"] = args?.model;
             resourceInputs["reasoningEffort"] = args?.reasoningEffort;
             resourceInputs["reasoningEnabled"] = args?.reasoningEnabled;
@@ -175,6 +180,7 @@ export class Agent extends pulumi.CustomResource {
             resourceInputs["enableVision"] = undefined /*out*/;
             resourceInputs["enabledNativeTools"] = undefined /*out*/;
             resourceInputs["maxToolTurns"] = undefined /*out*/;
+            resourceInputs["mcpDynamicToolLoading"] = undefined /*out*/;
             resourceInputs["model"] = undefined /*out*/;
             resourceInputs["reasoningEffort"] = undefined /*out*/;
             resourceInputs["reasoningEnabled"] = undefined /*out*/;
@@ -237,6 +243,10 @@ export interface AgentArgs {
      * Maximum tool-calling turns per response; 0 lets the plugin choose.
      */
     maxToolTurns?: pulumi.Input<number | undefined>;
+    /**
+     * Let the agent discover and load MCP tools on demand instead of receiving every tool definition up front.
+     */
+    mcpDynamicToolLoading?: pulumi.Input<boolean | undefined>;
     /**
      * Model to use; the service's default model when unset.
      */
