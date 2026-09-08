@@ -50,6 +50,11 @@ export type OutgoingWebhook = import("./outgoingWebhook").OutgoingWebhook;
 export const OutgoingWebhook: typeof import("./outgoingWebhook").OutgoingWebhook = null as any;
 utilities.lazyLoad(exports, ["OutgoingWebhook"], () => require("./outgoingWebhook"));
 
+export { PluginArgs } from "./plugin";
+export type Plugin = import("./plugin").Plugin;
+export const Plugin: typeof import("./plugin").Plugin = null as any;
+utilities.lazyLoad(exports, ["Plugin"], () => require("./plugin"));
+
 export { ProviderArgs } from "./provider";
 export type Provider = import("./provider").Provider;
 export const Provider: typeof import("./provider").Provider = null as any;
@@ -110,6 +115,8 @@ const _module = {
                 return new OAuthApp(name, <any>undefined, { urn })
             case "mattermost:index:OutgoingWebhook":
                 return new OutgoingWebhook(name, <any>undefined, { urn })
+            case "mattermost:index:Plugin":
+                return new Plugin(name, <any>undefined, { urn })
             case "mattermost:index:SystemConfig":
                 return new SystemConfig(name, <any>undefined, { urn })
             case "mattermost:index:Team":

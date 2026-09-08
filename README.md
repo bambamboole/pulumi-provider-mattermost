@@ -58,7 +58,39 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:AccessToken` (personal access token of a user or bot, e.g. a bot token for an integration; the value is kept in state as a secret, changing `userId` or `description` replaces it)
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
+- `mattermost:index:Plugin` (plugin from the marketplace or a download URL, its enabled flag and its settings; see below)
 - `mattermost:index:Bootstrap` (admin user with a personal access token; see above)
+
+## Plugins
+
+`mattermost:index:Plugin` installs a plugin, enables it and manages its settings under `PluginSettings.Plugins.<pluginId>`. Without `downloadUrl` the plugin comes from the marketplace, which also lists the plugins prepackaged with the server; `version` pins a marketplace version and the latest offered one is installed when it is unset. `settings` replaces the plugin's stored settings, so values written in the System Console are reverted on the next `pulumi up`; leave it unset to keep them unmanaged. Secret settings are masked by the API and kept from the inputs on refresh. Deleting the resource removes the plugin and keeps its settings, as the System Console does.
+
+```typescript
+const agents = new mattermost.Plugin("agents", {
+    pluginId: "mattermost-ai",
+    version: "2.7.0",
+    settings: {
+        config: {
+            services: [{
+                id: "anthropic",
+                name: "Anthropic",
+                type: "anthropic",
+                apiKey: config.requireSecret("anthropicApiKey"),
+                defaultModel: "claude-sonnet-5",
+            }],
+            bots: [{
+                id: "assistant",
+                name: "assistant",
+                displayName: "Assistant",
+                serviceID: "anthropic",
+                channelAccessLevel: 0,
+                userAccessLevel: 0,
+            }],
+            defaultBotName: "assistant",
+        },
+    },
+}, { provider });
+```
 
 ## Development
 
