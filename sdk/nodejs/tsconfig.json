@@ -20,6 +20,8 @@
     },
     "files": [
         "accessToken.ts",
+        "agent.ts",
+        "agentsConfig.ts",
         "bootstrap.ts",
         "bot.ts",
         "channel.ts",

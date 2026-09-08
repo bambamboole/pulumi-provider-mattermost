@@ -6,3 +6,50 @@ import * as inputs from "../types/input";
 import * as outputs from "../types/output";
 import * as enums from "../types/enums";
 
+export interface AgentsService {
+    /**
+     * API key of the service.
+     */
+    apiKey?: string;
+    /**
+     * Base URL of an OpenAI-compatible or self-hosted API, for example `https://openrouter.ai/api/v1`.
+     */
+    apiUrl?: string;
+    /**
+     * Model used when an agent does not name one.
+     */
+    defaultModel?: string;
+    /**
+     * ID of the service; agents refer to it.
+     */
+    id: string;
+    /**
+     * Input token limit; 0 lets the plugin choose.
+     */
+    inputTokenLimit?: number;
+    /**
+     * Display name of the service.
+     */
+    name: string;
+    /**
+     * Organization ID for OpenAI.
+     */
+    orgId?: string;
+    /**
+     * Output token limit; 0 lets the plugin choose.
+     */
+    outputTokenLimit?: number;
+    /**
+     * Timeout of a streaming response in seconds; 0 lets the plugin choose.
+     */
+    streamingTimeoutSeconds?: number;
+    /**
+     * Service type as the plugin names it, for example `openai`, `openaicompatible`, `anthropic`, `azure`, `bedrock` or `vertex`.
+     */
+    type: string;
+    /**
+     * Use OpenAI's Responses API instead of Chat Completions. The plugin forces it on for the `openai` type.
+     */
+    useResponsesApi?: boolean;
+}
+

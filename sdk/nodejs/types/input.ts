@@ -6,3 +6,49 @@ import * as inputs from "../types/input";
 import * as outputs from "../types/output";
 import * as enums from "../types/enums";
 
+export interface AgentsServiceArgs {
+    /**
+     * API key of the service.
+     */
+    apiKey?: pulumi.Input<string | undefined>;
+    /**
+     * Base URL of an OpenAI-compatible or self-hosted API, for example `https://openrouter.ai/api/v1`.
+     */
+    apiUrl?: pulumi.Input<string | undefined>;
+    /**
+     * Model used when an agent does not name one.
+     */
+    defaultModel?: pulumi.Input<string | undefined>;
+    /**
+     * ID of the service; agents refer to it.
+     */
+    id: pulumi.Input<string>;
+    /**
+     * Input token limit; 0 lets the plugin choose.
+     */
+    inputTokenLimit?: pulumi.Input<number | undefined>;
+    /**
+     * Display name of the service.
+     */
+    name: pulumi.Input<string>;
+    /**
+     * Organization ID for OpenAI.
+     */
+    orgId?: pulumi.Input<string | undefined>;
+    /**
+     * Output token limit; 0 lets the plugin choose.
+     */
+    outputTokenLimit?: pulumi.Input<number | undefined>;
+    /**
+     * Timeout of a streaming response in seconds; 0 lets the plugin choose.
+     */
+    streamingTimeoutSeconds?: pulumi.Input<number | undefined>;
+    /**
+     * Service type as the plugin names it, for example `openai`, `openaicompatible`, `anthropic`, `azure`, `bedrock` or `vertex`.
+     */
+    type: pulumi.Input<string>;
+    /**
+     * Use OpenAI's Responses API instead of Chat Completions. The plugin forces it on for the `openai` type.
+     */
+    useResponsesApi?: pulumi.Input<boolean | undefined>;
+}
