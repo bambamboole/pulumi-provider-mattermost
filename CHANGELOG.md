@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.10.0...v0.11.0) (2026-09-08)
+
+
+### Features
+
+* manage mcpDynamicToolLoading on Agent ([d79d03c](https://github.com/bambamboole/pulumi-provider-mattermost/commit/d79d03cbfd0a7d86d270848c965e2713d59987e8))
+
+
+### Bug Fixes
+
+* keep an agent's botUserId known while other inputs change ([18268f6](https://github.com/bambamboole/pulumi-provider-mattermost/commit/18268f6be86a1e6298f8d9c49b1f0366c220af4a))
+
 ## [0.10.0](https://github.com/bambamboole/pulumi-provider-mattermost/compare/v0.9.0...v0.10.0) (2026-09-08)
 
 
