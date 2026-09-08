@@ -23,6 +23,7 @@ func New() (p.Provider, error) {
 			infer.Resource(Bot{}),
 			infer.Resource(AccessToken{}),
 			infer.Resource(OAuthApp{}),
+			infer.Resource(Plugin{}),
 			infer.Resource(SystemConfig{}),
 			infer.Resource(Bootstrap{}),
 		).

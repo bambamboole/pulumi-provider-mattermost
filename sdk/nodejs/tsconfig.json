@@ -31,6 +31,7 @@
         "index.ts",
         "oauthApp.ts",
         "outgoingWebhook.ts",
+        "plugin.ts",
         "provider.ts",
         "systemConfig.ts",
         "team.ts",
