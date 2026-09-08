@@ -1,12 +1,18 @@
 package provider
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/blang/semver"
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-go-provider/integration"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 const agentOnServer = `{
@@ -172,5 +178,37 @@ func TestAgentDeleteToleratesAMissingAgent(t *testing.T) {
 	gone.Config.Handler = notFoundHandler(t, gone)
 	if _, err := (Agent{}).Delete(testContext(t, gone.URL), infer.DeleteRequest[AgentState]{ID: "agent-1"}); err != nil {
 		t.Fatalf("a missing agent must not fail the delete, got %v", err)
+	}
+}
+
+func TestAgentBotUserIDStaysKnownWhileOtherInputsChange(t *testing.T) {
+	ctx := context.Background()
+	provider, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := integration.NewServer(ctx, "mattermost", semver.MustParse("0.0.0"), integration.WithProvider(provider))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := property.NewMap(map[string]property.Value{
+		"username": property.New("ai"), "displayName": property.New("AI"), "serviceId": property.New("openrouter"),
+		"channelAccessLevel": property.New("all"), "userAccessLevel": property.New("all"), "botUserId": property.New("bot-user-1"),
+	})
+	inputs := state.Set("displayName", property.New("Assistant")).Delete("botUserId")
+
+	response, err := server.Update(p.UpdateRequest{
+		ID:     "agent-1",
+		Urn:    presource.NewURN("production", "test", "", "mattermost:index:Agent", "ai"),
+		State:  state,
+		Inputs: inputs,
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	botUserID := response.Properties.Get("botUserId")
+	if botUserID.IsComputed() || botUserID.AsString() != "bot-user-1" {
+		t.Fatalf("botUserId must stay known in an update preview, got %#v", botUserID)
 	}
 }

@@ -118,6 +118,14 @@ func (state *AgentState) Annotate(a infer.Annotator) {
 	a.Describe(&state.BotUserID, "User ID of the agent's bot account.")
 }
 
+// WireDependencies keeps botUserId known while an agent is updated in a
+// preview: the bot account only changes with the username, which replaces
+// the agent. Without it every update would show dependents such as a
+// TeamMember with an unknown user ID, which they would have to replace.
+func (Agent) WireDependencies(f infer.FieldSelector, args *AgentArgs, state *AgentState) {
+	f.OutputField(&state.BotUserID).DependsOn(f.InputField(&args.Username))
+}
+
 func (Agent) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[AgentArgs], error) {
 	args, failures, err := infer.DefaultCheck[AgentArgs](ctx, req.NewInputs)
 	if err != nil {
