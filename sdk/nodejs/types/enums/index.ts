@@ -2,6 +2,27 @@
 // *** Do not edit by hand unless you're certain you know what you are doing! ***
 
 
+export const AgentAccessLevel = {
+    /**
+     * Every channel or user.
+     */
+    All: "all",
+    /**
+     * Only the listed channels or users.
+     */
+    Allow: "allow",
+    /**
+     * Every channel or user except the listed ones.
+     */
+    Block: "block",
+    /**
+     * No channel or user.
+     */
+    None: "none",
+} as const;
+
+export type AgentAccessLevel = (typeof AgentAccessLevel)[keyof typeof AgentAccessLevel];
+
 export const SystemRole = {
     /**
      * Regular member of the system.

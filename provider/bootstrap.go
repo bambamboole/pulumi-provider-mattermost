@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mattermost/mattermost/server/public/model"
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 
 	mm "github.com/bambamboole/pulumi-provider-mattermost/internal/mattermost"
@@ -44,11 +45,12 @@ type BootstrapState struct {
 	GeneratedPassword string `pulumi:"generatedPassword,optional" provider:"secret"`
 	TokenID           string `pulumi:"tokenId"`
 	Token             string `pulumi:"token" provider:"secret"`
+	RepairRequired    bool   `pulumi:"repairRequired,optional"`
 }
 
 func (r *Bootstrap) Annotate(a infer.Annotator) {
 	a.SetToken("index", "Bootstrap")
-	a.Describe(&r, "Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.")
+	a.Describe(&r, "Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. A refresh that finds the token rejected while the user still logs in with its password (for example after a server reset disabled personal access tokens, or after the token was revoked) marks the resource for repair, and the next update enables personal access tokens again and reissues the token when it is gone. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.")
 }
 
 func (args *BootstrapArgs) Annotate(a infer.Annotator) {
@@ -67,6 +69,7 @@ func (state *BootstrapState) Annotate(a infer.Annotator) {
 	a.Describe(&state.GeneratedPassword, "The generated password when none was configured.")
 	a.Describe(&state.TokenID, "ID of the issued personal access token.")
 	a.Describe(&state.Token, "The issued personal access token. Use it as the token of a second provider instance.")
+	a.Describe(&state.RepairRequired, "True after a refresh found the token rejected while the user could still be reached with its password or adminToken. The next update repairs the token.")
 }
 
 func defaultBootstrapRoles() []SystemRole {
@@ -142,11 +145,21 @@ func (Bootstrap) Read(ctx context.Context, req infer.ReadRequest[BootstrapArgs, 
 	}
 	me, response, err := client.API.GetMe(ctx, "")
 	if isUnauthorized(response) || isNotFound(response) {
-		// The token was revoked or the user removed: recreate on the next update.
-		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
-	}
-	if err != nil {
+		// The token is rejected: disabled with personal access tokens, revoked,
+		// or gone with the user. When the user is still reachable, the next
+		// update repairs the token; otherwise the resource is recreated.
+		me, err = bootstrapReachUser(ctx, bootstrapBaseURL(ctx, state.BootstrapArgs), state)
+		if err != nil {
+			return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, err
+		}
+		if me == nil {
+			return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
+		}
+		state.RepairRequired = true
+	} else if err != nil {
 		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, err
+	} else {
+		state.RepairRequired = false
 	}
 	if me.Id != state.UserID || me.DeleteAt > 0 {
 		return infer.ReadResponse[BootstrapArgs, BootstrapState]{}, nil
@@ -163,6 +176,29 @@ func (Bootstrap) Read(ctx context.Context, req infer.ReadRequest[BootstrapArgs, 
 	return infer.ReadResponse[BootstrapArgs, BootstrapState]{ID: req.ID, Inputs: inputs, State: state}, nil
 }
 
+// Diff compares the inputs like the default diff would and also schedules an
+// update when a refresh marked the token for repair.
+func (Bootstrap) Diff(_ context.Context, req infer.DiffRequest[BootstrapArgs, BootstrapState]) (infer.DiffResponse, error) {
+	diff := map[string]p.PropertyDiff{}
+	old, next := req.State.BootstrapArgs, req.Inputs
+	if old.Username != next.Username {
+		diff["username"] = p.PropertyDiff{Kind: p.UpdateReplace, InputDiff: true}
+	}
+	for name, changed := range map[string]bool{
+		"baseUrl":          old.BaseURL != next.BaseURL,
+		"email":            old.Email != next.Email,
+		"password":         old.Password != next.Password,
+		"adminToken":       old.AdminToken != next.AdminToken,
+		"roles":            !rolesEqual(old.Roles, next.Roles),
+		"tokenDescription": old.TokenDescription != next.TokenDescription,
+	} {
+		if changed {
+			diff[name] = p.PropertyDiff{Kind: p.Update, InputDiff: true}
+		}
+	}
+	return infer.DiffResponse{HasChanges: len(diff) > 0 || req.State.RepairRequired, DetailedDiff: diff}, nil
+}
+
 func (Bootstrap) Update(ctx context.Context, req infer.UpdateRequest[BootstrapArgs, BootstrapState]) (infer.UpdateResponse[BootstrapState], error) {
 	state := BootstrapState{
 		BootstrapArgs:     req.Inputs,
@@ -177,6 +213,13 @@ func (Bootstrap) Update(ctx context.Context, req infer.UpdateRequest[BootstrapAr
 	session, err := bootstrapManagementSession(ctx, req.State)
 	if err != nil {
 		return infer.UpdateResponse[BootstrapState]{}, err
+	}
+	if req.State.RepairRequired {
+		tokenID, token, err := bootstrapRepairToken(ctx, session, req.State)
+		if err != nil {
+			return infer.UpdateResponse[BootstrapState]{}, err
+		}
+		state.TokenID, state.Token = tokenID, token
 	}
 
 	if req.Inputs.Email != req.State.Email {
@@ -197,17 +240,81 @@ func (Bootstrap) Update(ctx context.Context, req infer.UpdateRequest[BootstrapAr
 		state.GeneratedPassword = ""
 	}
 	if req.Inputs.TokenDescription != req.State.TokenDescription {
+		if err := bootstrapEnableUserAccessTokens(ctx, session); err != nil {
+			return infer.UpdateResponse[BootstrapState]{}, err
+		}
 		token, _, err := session.API.CreateUserAccessToken(ctx, state.UserID, req.Inputs.TokenDescription, 0)
 		if err != nil {
 			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: rotating access token: %w", err)
 		}
+		previousTokenID := state.TokenID
 		state.TokenID = token.Id
 		state.Token = token.Token
-		if response, err := session.API.RevokeUserAccessToken(ctx, req.State.TokenID); err != nil && !isNotFound(response) {
+		if response, err := session.API.RevokeUserAccessToken(ctx, previousTokenID); err != nil && !isNotFound(response) {
 			return infer.UpdateResponse[BootstrapState]{}, fmt.Errorf("mattermost: revoking previous access token: %w", err)
 		}
 	}
 	return infer.UpdateResponse[BootstrapState]{Output: state}, nil
+}
+
+// bootstrapReachUser looks the user up without the issued token: through a
+// password login, or through adminToken. It returns nil when neither works
+// or the user is gone.
+func bootstrapReachUser(ctx context.Context, baseURL string, state BootstrapState) (*model.User, error) {
+	if password := state.effectivePassword(); password != "" {
+		anonymous, err := mm.NewAnonymous(baseURL)
+		if err != nil {
+			return nil, err
+		}
+		user, response, err := anonymous.API.Login(ctx, state.Username, password)
+		if err == nil {
+			return user, nil
+		}
+		if !isUnauthorized(response) && !isNotFound(response) && !isBadRequest(response) {
+			return nil, err
+		}
+	}
+	if strings.TrimSpace(state.AdminToken) != "" {
+		admin, err := mm.New(baseURL, state.AdminToken)
+		if err != nil {
+			return nil, err
+		}
+		user, response, err := admin.API.GetUser(ctx, state.UserID, "")
+		if err == nil {
+			return user, nil
+		}
+		if !isUnauthorized(response) && !isNotFound(response) {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+// bootstrapRepairToken enables personal access tokens again and keeps the
+// issued token when the server accepts it afterwards; otherwise it issues a
+// new one and revokes what is left of the old.
+func bootstrapRepairToken(ctx context.Context, session *mm.Client, state BootstrapState) (string, string, error) {
+	if err := bootstrapEnableUserAccessTokens(ctx, session); err != nil {
+		return "", "", err
+	}
+	if state.Token != "" {
+		client, err := mm.New(session.BaseURL, state.Token)
+		if err == nil {
+			if me, _, err := client.API.GetMe(ctx, ""); err == nil && me.Id == state.UserID {
+				return state.TokenID, state.Token, nil
+			}
+		}
+	}
+	token, _, err := session.API.CreateUserAccessToken(ctx, state.UserID, state.TokenDescription, 0)
+	if err != nil {
+		return "", "", fmt.Errorf("mattermost: reissuing access token: %w", err)
+	}
+	if state.TokenID != "" {
+		if response, err := session.API.RevokeUserAccessToken(ctx, state.TokenID); err != nil && !isNotFound(response) {
+			return "", "", fmt.Errorf("mattermost: revoking previous access token: %w", err)
+		}
+	}
+	return token.Id, token.Token, nil
 }
 
 // Delete revokes the access token. The user is kept: deactivating an admin
@@ -398,4 +505,8 @@ func randomChar(alphabet string) (byte, error) {
 
 func isUnauthorized(response *model.Response) bool {
 	return response != nil && response.StatusCode == http.StatusUnauthorized
+}
+
+func isBadRequest(response *model.Response) bool {
+	return response != nil && response.StatusCode == http.StatusBadRequest
 }

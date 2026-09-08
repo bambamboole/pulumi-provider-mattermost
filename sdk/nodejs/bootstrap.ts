@@ -8,7 +8,7 @@ import * as enums from "./types/enums";
 import * as utilities from "./utilities";
 
 /**
- * Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.
+ * Obtains a personal access token of a system-admin user without user interaction, for use as the token of a second provider instance. On a fresh server the user is signed up as the first account (which Mattermost promotes to system admin). On a running server the user is logged in with its password, or created or adopted through adminToken. Personal access tokens are enabled on the server when they are not. A refresh that finds the token rejected while the user still logs in with its password (for example after a server reset disabled personal access tokens, or after the token was revoked) marks the resource for repair, and the next update enables personal access tokens again and reissues the token when it is gone. The resource authenticates on its own, so its provider does not need a token. The resource ID is the user ID.
  */
 export class Bootstrap extends pulumi.CustomResource {
     /**
@@ -57,6 +57,10 @@ export class Bootstrap extends pulumi.CustomResource {
      * Password of the admin user. Generated and kept in state when unset. Adopting an existing user through adminToken sets it.
      */
     declare public readonly password: pulumi.Output<string | undefined>;
+    /**
+     * True after a refresh found the token rejected while the user could still be reached with its password or adminToken. The next update repairs the token.
+     */
+    declare public /*out*/ readonly repairRequired: pulumi.Output<boolean | undefined>;
     /**
      * System roles of the user. Defaults to ["system_user", "system_admin"].
      */
@@ -107,6 +111,7 @@ export class Bootstrap extends pulumi.CustomResource {
             resourceInputs["tokenDescription"] = (args?.tokenDescription) ?? "pulumi";
             resourceInputs["username"] = args?.username;
             resourceInputs["generatedPassword"] = undefined /*out*/;
+            resourceInputs["repairRequired"] = undefined /*out*/;
             resourceInputs["token"] = undefined /*out*/;
             resourceInputs["tokenId"] = undefined /*out*/;
             resourceInputs["userId"] = undefined /*out*/;
@@ -116,6 +121,7 @@ export class Bootstrap extends pulumi.CustomResource {
             resourceInputs["email"] = undefined /*out*/;
             resourceInputs["generatedPassword"] = undefined /*out*/;
             resourceInputs["password"] = undefined /*out*/;
+            resourceInputs["repairRequired"] = undefined /*out*/;
             resourceInputs["roles"] = undefined /*out*/;
             resourceInputs["token"] = undefined /*out*/;
             resourceInputs["tokenDescription"] = undefined /*out*/;

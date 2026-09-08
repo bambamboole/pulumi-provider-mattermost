@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 
 	mm "github.com/bambamboole/pulumi-provider-mattermost/internal/mattermost"
@@ -30,6 +31,7 @@ type fakeMattermost struct {
 	mu           sync.Mutex
 	users        map[string]*fakeUser // username -> user
 	tokens       map[string]string    // token value -> user id
+	personal     map[string]bool      // token value -> issued as a personal access token
 	tokensOn     bool                 // ServiceSettings.EnableUserAccessTokens
 	nextToken    int
 	calls        []string
@@ -38,7 +40,7 @@ type fakeMattermost struct {
 }
 
 func newFakeMattermost(t *testing.T) *fakeMattermost {
-	return &fakeMattermost{t: t, users: map[string]*fakeUser{}, tokens: map[string]string{}}
+	return &fakeMattermost{t: t, users: map[string]*fakeUser{}, tokens: map[string]string{}, personal: map[string]bool{}}
 }
 
 // addHumanAdmin adds an existing system admin and returns one of its tokens.
@@ -96,6 +98,10 @@ func (f *fakeMattermost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if _, user := f.byID(userID); user != nil && !strings.HasPrefix(user.id, "user-human") {
 			authorized = false
 		}
+	}
+	// Mattermost rejects personal access tokens while the setting is off.
+	if parts := strings.SplitN(r.Header.Get("Authorization"), " ", 2); authorized && !f.tokensOn && len(parts) == 2 && f.personal[parts[1]] {
+		authorized = false
 	}
 
 	switch {
@@ -183,6 +189,7 @@ func (f *fakeMattermost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		id := strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/tokens")
 		token := f.issueToken(id)
+		f.personal[token] = true
 		writeJSON(w, http.StatusOK, map[string]any{"id": "token-id-" + token, "token": token, "user_id": id, "description": body["description"], "is_active": true})
 	case r.Method == http.MethodPost && path == "/users/tokens/revoke":
 		var body map[string]string
@@ -373,7 +380,78 @@ func TestBootstrapCreateFailsWithoutCredentialsOnExistingServer(t *testing.T) {
 	}
 }
 
-func TestBootstrapReadTreatsRevokedTokenAsGone(t *testing.T) {
+func TestBootstrapReadTreatsRevokedTokenAsGoneWhenTheUserIsUnreachable(t *testing.T) {
+	fake := newFakeMattermost(t)
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	state := create(t, bootstrapArgs(server.URL))
+
+	fake.mu.Lock()
+	delete(fake.tokens, state.Token)
+	fake.failPassword = true
+	fake.mu.Unlock()
+
+	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: state})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.ID != "" {
+		t.Fatal("a revoked token without a working password must mark the resource as gone")
+	}
+}
+
+func readBootstrap(t *testing.T, state BootstrapState) infer.ReadResponse[BootstrapArgs, BootstrapState] {
+	t.Helper()
+	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: state})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response
+}
+
+func TestBootstrapRepairsATokenDisabledByAServerReset(t *testing.T) {
+	fake := newFakeMattermost(t)
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	state := create(t, bootstrapArgs(server.URL))
+
+	// A recreated container comes back with the default configuration.
+	fake.mu.Lock()
+	fake.tokensOn = false
+	fake.mu.Unlock()
+
+	read := readBootstrap(t, state)
+	if read.ID != state.UserID || !read.State.RepairRequired || read.State.Token != state.Token {
+		t.Fatalf("expected the resource to be kept and marked for repair, got %#v", read.State)
+	}
+	diff, err := (Bootstrap{}).Diff(context.Background(), infer.DiffRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: read.State})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !diff.HasChanges || len(diff.DetailedDiff) != 0 {
+		t.Fatalf("a repair must schedule an update without input changes, got %#v", diff)
+	}
+	fake.resetCalls()
+
+	updated, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: read.State})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fake.called("POST /api/v4/users/login") || !fake.tokensOn {
+		t.Fatalf("expected a password login that enables personal access tokens, calls: %v", fake.calls)
+	}
+	if updated.Output.Token != state.Token || updated.Output.TokenID != state.TokenID || updated.Output.RepairRequired {
+		t.Fatalf("a token that works again must be kept, got %#v", updated.Output)
+	}
+	if fake.called("POST /api/v4/users/user-infrastructure/tokens") {
+		t.Fatal("no new token must be issued while the old one works")
+	}
+	if readBootstrap(t, updated.Output).State.RepairRequired {
+		t.Fatal("the repaired resource must read back clean")
+	}
+}
+
+func TestBootstrapRepairsARevokedTokenThroughThePassword(t *testing.T) {
 	fake := newFakeMattermost(t)
 	server := httptest.NewServer(fake)
 	defer server.Close()
@@ -383,12 +461,69 @@ func TestBootstrapReadTreatsRevokedTokenAsGone(t *testing.T) {
 	delete(fake.tokens, state.Token)
 	fake.mu.Unlock()
 
-	response, err := (Bootstrap{}).Read(context.Background(), infer.ReadRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: state})
+	read := readBootstrap(t, state)
+	if read.ID != state.UserID || !read.State.RepairRequired {
+		t.Fatalf("expected the resource to be marked for repair, got %#v", read.State)
+	}
+
+	updated, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: state.BootstrapArgs, State: read.State})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.ID != "" {
-		t.Fatal("a revoked token must mark the resource as gone")
+	if updated.Output.Token == state.Token || updated.Output.Token == "" || updated.Output.RepairRequired {
+		t.Fatalf("expected a reissued token, got %#v", updated.Output)
+	}
+	if fake.tokens[updated.Output.Token] != state.UserID {
+		t.Fatal("the reissued token must belong to the user")
+	}
+}
+
+func TestBootstrapRepairsThroughAdminTokenWhenThePasswordIsUnknown(t *testing.T) {
+	fake := newFakeMattermost(t)
+	adminToken := fake.addHumanAdmin()
+	fake.tokensOn = true
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	args := bootstrapArgs(server.URL)
+	args.AdminToken = adminToken
+	state := create(t, args)
+
+	fake.mu.Lock()
+	delete(fake.tokens, state.Token)
+	fake.failPassword = true
+	fake.mu.Unlock()
+
+	read := readBootstrap(t, state)
+	if read.ID != state.UserID || !read.State.RepairRequired {
+		t.Fatalf("expected adminToken to reach the user, got %#v", read.State)
+	}
+	updated, err := (Bootstrap{}).Update(context.Background(), infer.UpdateRequest[BootstrapArgs, BootstrapState]{ID: state.UserID, Inputs: args, State: read.State})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Output.Token == state.Token || fake.tokens[updated.Output.Token] != state.UserID {
+		t.Fatalf("expected a reissued token of the user, got %#v", updated.Output)
+	}
+}
+
+func TestBootstrapDiffReportsInputChangesLikeTheDefault(t *testing.T) {
+	state := BootstrapState{BootstrapArgs: bootstrapArgs("https://chat.example.com")}
+	inputs := state.BootstrapArgs
+	inputs.Email = "ops@example.com"
+	inputs.Username = "renamed"
+	diff, err := (Bootstrap{}).Diff(context.Background(), infer.DiffRequest[BootstrapArgs, BootstrapState]{Inputs: inputs, State: state})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !diff.HasChanges || len(diff.DetailedDiff) != 2 || diff.DetailedDiff["email"].Kind != p.Update || diff.DetailedDiff["username"].Kind != p.UpdateReplace {
+		t.Fatalf("unexpected diff %#v", diff)
+	}
+	same, err := (Bootstrap{}).Diff(context.Background(), infer.DiffRequest[BootstrapArgs, BootstrapState]{Inputs: state.BootstrapArgs, State: state})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same.HasChanges {
+		t.Fatalf("unchanged inputs must not diff, got %#v", same)
 	}
 }
 

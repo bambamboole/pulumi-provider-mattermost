@@ -10,6 +10,16 @@ export type AccessToken = import("./accessToken").AccessToken;
 export const AccessToken: typeof import("./accessToken").AccessToken = null as any;
 utilities.lazyLoad(exports, ["AccessToken"], () => require("./accessToken"));
 
+export { AgentArgs } from "./agent";
+export type Agent = import("./agent").Agent;
+export const Agent: typeof import("./agent").Agent = null as any;
+utilities.lazyLoad(exports, ["Agent"], () => require("./agent"));
+
+export { AgentsConfigArgs } from "./agentsConfig";
+export type AgentsConfig = import("./agentsConfig").AgentsConfig;
+export const AgentsConfig: typeof import("./agentsConfig").AgentsConfig = null as any;
+utilities.lazyLoad(exports, ["AgentsConfig"], () => require("./agentsConfig"));
+
 export { BootstrapArgs } from "./bootstrap";
 export type Bootstrap = import("./bootstrap").Bootstrap;
 export const Bootstrap: typeof import("./bootstrap").Bootstrap = null as any;
@@ -99,6 +109,10 @@ const _module = {
         switch (type) {
             case "mattermost:index:AccessToken":
                 return new AccessToken(name, <any>undefined, { urn })
+            case "mattermost:index:Agent":
+                return new Agent(name, <any>undefined, { urn })
+            case "mattermost:index:AgentsConfig":
+                return new AgentsConfig(name, <any>undefined, { urn })
             case "mattermost:index:Bootstrap":
                 return new Bootstrap(name, <any>undefined, { urn })
             case "mattermost:index:Bot":

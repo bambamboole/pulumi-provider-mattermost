@@ -27,7 +27,7 @@ The token may be omitted for a provider instance that only creates a `Bootstrap`
 3. The `roles` (default `system_user`, `system_admin`) are applied.
 4. Personal access tokens are enabled on the server when `ServiceSettings.EnableUserAccessTokens` is off, and a token described by `tokenDescription` (default `pulumi`) is issued.
 
-Outputs: `token` (secret), `tokenId`, `userId`, `generatedPassword` (secret). Changing `tokenDescription` rotates the token, changing `email`, `roles` or `password` updates the user, changing `username` replaces the resource. Refreshing detects a revoked token or a deleted user and recreates; recovery then needs the configured `password` or `adminToken`, because the generated password is gone with the state entry. Deleting the resource revokes the token and keeps the user.
+Outputs: `token` (secret), `tokenId`, `userId`, `generatedPassword` (secret), `repairRequired`. Changing `tokenDescription` rotates the token, changing `email`, `roles` or `password` updates the user, changing `username` replaces the resource. When a refresh finds the token rejected but still reaches the user with its password or `adminToken`, the resource is kept and marked `repairRequired`; the next update enables personal access tokens again (a recreated container comes back with them disabled) and keeps the token if the server accepts it afterwards, or issues a new one. Only a user that neither the password nor `adminToken` can reach is treated as gone and recreated. Deleting the resource revokes the token and keeps the user.
 
 Use two provider instances: one without a token for the bootstrap, one fed by its output for everything else.
 
@@ -59,6 +59,8 @@ new mattermost.Team("engineering", { name: "engineering", displayName: "Engineer
 - `mattermost:index:OAuthApp`
 - `mattermost:index:SystemConfig`
 - `mattermost:index:Plugin` (plugin from the marketplace or a download URL, its enabled flag and its settings; see below)
+- `mattermost:index:AgentsConfig` (LLM services and switches of the Agents plugin; see below)
+- `mattermost:index:Agent` (a self-service agent of the Agents plugin; see below)
 - `mattermost:index:Bootstrap` (admin user with a personal access token; see above)
 
 ## Plugins
@@ -90,6 +92,34 @@ const agents = new mattermost.Plugin("agents", {
         },
     },
 }, { provider });
+```
+
+## Agents
+
+Since version 2.5 the Agents plugin (`mattermost-ai`) keeps its LLM services and its agents in its own database tables behind `/plugins/mattermost-ai/admin/config` and `/plugins/mattermost-ai/agents`; a value under `PluginSettings.Plugins` is read by a one-time legacy migration at most, so `Plugin.settings` cannot configure it. Two resources talk to those endpoints with the provider's token, whose user must be a system admin. Install and enable the plugin first, for example with a `Plugin` resource.
+
+`mattermost:index:AgentsConfig` is a singleton (ID `mattermost-ai`) that replaces the plugin's service list and sets the declared switches; everything else the endpoint holds (MCP servers, web search, embedding search, legacy bots) is read before writing and kept. Deleting the resource keeps the configuration, because agents keep referring to the services.
+
+`mattermost:index:Agent` creates an agent through the agents endpoint: a bot account named `username` backed by `serviceId`. Access levels are `all`, `allow`, `block` or `none`, combined with `channelIds`, `userIds` and `teamIds`. Updates replace the agent as the endpoint does; the MCP tool selection made in the Agents UI is carried over because it is not managed. Without an E20 or Enterprise license the plugin allows one agent per server. Deleting the resource removes the agent and its bot account.
+
+```typescript
+const agents = new mattermost.Plugin("agents", { pluginId: "mattermost-ai" }, { provider });
+const agentsConfig = new mattermost.AgentsConfig("agents", {
+    services: [{
+        id: "openrouter",
+        name: "OpenRouter",
+        type: "openaicompatible",
+        apiUrl: "https://openrouter.ai/api/v1",
+        apiKey: config.requireSecret("openRouterApiKey"),
+        defaultModel: "anthropic/claude-sonnet-5",
+    }],
+}, { provider, dependsOn: agents });
+new mattermost.Agent("ai", {
+    username: "ai",
+    displayName: "AI",
+    serviceId: "openrouter",
+    customInstructions: "You help the Artisan OS team.",
+}, { provider, dependsOn: agentsConfig });
 ```
 
 ## Development
